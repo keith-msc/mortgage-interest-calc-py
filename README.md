@@ -26,3 +26,17 @@ This Python script calculates the monthly payments and generates a complete amor
 
    ```bash
    python amortization_calculator.py
+
+## Example output:
+
+Enter the loan amount (principal): 250000
+Enter the annual interest rate (in %): 5
+Enter the loan term in months: 360
+Enter the start month (MM): 08
+Enter the start year (YYYY): 2024
+
+Date                 Month  Payment    Principal       Interest  Balance    LTV     
+August 2024          1      1342.05    342.05          1000.00   249657.95  99.9%   
+September 2024       2      1342.05    343.48          998.57    249314.47  99.7%   
+October 2024         3      1342.05    344.91          997.14    248969.55  99.6%   
+...
