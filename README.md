@@ -63,17 +63,9 @@ python3 -m venv venv
       Enter the start month (MM): 08
       Enter the start year (YYYY): 2024
 
-      Date                 Month  Payment    Principal       Interest  Balance    LTV     
-```bash
+```
+Date                 Month  Payment    Principal       Interest  Balance    LTV     
 August 2024          1      1698.10    342.05          1000.00   249657.95  99.9%   
 September 2024       2      1698.10    343.48          998.57    249314.47  99.7%   
 October 2024         3      1698.10    344.91          997.14    248969.55  99.6%   
 ```
-
-   ### Full Directory Structure
-
-AmortizationCalc/
-├── amortization_calculator.py
-├── requirements.txt
-├── README.md
-└── ... (other files)
