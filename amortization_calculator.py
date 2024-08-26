@@ -1,4 +1,6 @@
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
+import csv
 
 def validate_month_year(month, year):
     try:
@@ -23,7 +25,7 @@ def create_amortization_schedule(principal, annual_rate, months, start_date):
     for i in range(1, months + 1):
         interest = balance * monthly_rate
         principal_payment = monthly_payment - interest
-        balance -= principal_payment
+        balance = max(balance - principal_payment, 0)  # Ensuring balance doesn't go negative due to rounding
         ltv = (balance / principal) * 100  # Calculate LTV ratio as a percentage
         amortization_schedule.append({
             'Date': current_date.strftime("%B %Y"),  
@@ -34,9 +36,7 @@ def create_amortization_schedule(principal, annual_rate, months, start_date):
             'Remaining Balance': f"{balance:.2f}",
             'LTV': f"{ltv:.1f}%"  # Format LTV to one decimal point
         })
-        next_month = current_date.month % 12 + 1
-        next_year = current_date.year + (current_date.month // 12)
-        current_date = current_date.replace(year=next_year, month=next_month)
+        current_date += relativedelta(months=1)  # Correctly increment the month
 
     return amortization_schedule
 
@@ -45,22 +45,29 @@ def print_amortization_schedule(schedule):
     for payment_info in schedule:
         print(f"{payment_info['Date']:<20} {payment_info['Month']:<6} {payment_info['Payment']:<10} {payment_info['Principal Payment']:<15} {payment_info['Interest Payment']:<10} {payment_info['LTV']:<8} {payment_info['Remaining Balance']:<10}")
 
-# User input
-principal = float(input("Enter the loan amount (principal): "))
-annual_rate = float(input("Enter the annual interest rate (in %): "))
-months = int(input("Enter the loan term in months: "))
+def export_amortization_schedule_to_csv(schedule, file_name):
+    with open(file_name, 'w', newline='') as csv_file:
+        fieldnames = ['Date', 'Month', 'Payment', 'Principal Payment', 'Interest Payment', 'LTV', 'Remaining Balance']
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        writer.writeheader()
+        for payment_info in schedule:
+            writer.writerow(payment_info)
+        print(f"Amortization schedule successfully exported to {file_name}")
 
-# Get and validate the start month and year
-month = int(input("Enter the start month (MM): "))
-year = int(input("Enter the start year (YYYY): "))
-start_date = validate_month_year(month, year)
+if __name__ == "__main__":
+    principal = float(input("Enter the loan amount (principal): "))
+    annual_rate = float(input("Enter the annual interest rate (in %): "))
+    months = int(input("Enter the loan term in months: "))
+    start_month = int(input("Enter the start month (MM): "))
+    start_year = int(input("Enter the start year (YYYY): "))
 
-while start_date is None:
-    print("Invalid month or year. Please try again.")
-    month = int(input("Enter the start month (MM): "))
-    year = int(input("Enter the start year (YYYY): "))
-    start_date = validate_month_year(month, year)
-
-# Generate and print the amortization schedule
-amortization_schedule = create_amortization_schedule(principal, annual_rate, months, start_date)
-print_amortization_schedule(amortization_schedule)
+    start_date = validate_month_year(start_month, start_year)
+    if not start_date:
+        print("Invalid start month or year. Please try again.")
+    else:
+        schedule = create_amortization_schedule(principal, annual_rate, months, start_date)
+        print_amortization_schedule(schedule)
+        # Specify the file name for the CSV file
+        csv_file_name = "amortization_schedule.csv"
+        # Write the amortization schedule to the CSV file using the new function
+        export_amortization_schedule_to_csv(schedule, csv_file_name)
