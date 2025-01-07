@@ -79,7 +79,9 @@ The script will prompt you for the following inputs:
 
 1. **Loan Amount (Principal)**: The total amount of the loan (e.g., `100000`).
 2. **Annual Interest Rate**: The annual interest rate in percent (e.g., `5`).
-3. **Loan Term in Months**: The total number of months over which the loan will be repaid (e.g., `360`).
+3. **Loan Term**: 
+   - Years: The number of years for the loan term (e.g., `30`)
+   - Additional Months: Any additional months (0-11) beyond the years (e.g., `6` for 30 years and 6 months)
 4. **Start Month**: The month when the loan starts (e.g., `January` or `Jan`).
 5. **Start Year**: The year when the loan starts (e.g., `2023`).
 6. **Currency Symbol**: Choose your currency symbol by entering `'euro'`, `'dollar'`, or `'sterling'`.
@@ -91,7 +93,8 @@ The script will prompt you for the following inputs:
 ```plaintext
 Enter the loan amount (principal): 200000
 Enter the annual interest rate (in %): 3.5
-Enter the loan term in months: 360
+Enter the loan term in years: 30
+Enter any additional months (0-11): 0
 Enter the start month (e.g., January, Jan): June
 Enter the start year (e.g., 2023): 2023
 Choose your currency symbol - enter 'euro', 'dollar', or 'sterling': sterling

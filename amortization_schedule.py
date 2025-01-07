@@ -211,18 +211,22 @@ def plot_amortization_schedule(schedule, currency_symbol):
         Exception: If there's an error creating or saving the plots.
     """
     try:
-        months = [payment['Month'] for payment in schedule]
+        # Convert months to years for x-axis
+        years = [payment['Month']/12 for payment in schedule]
         principal_payments = [payment['Principal Payment'] for payment in schedule]
         interest_payments = [payment['Interest Payment'] for payment in schedule]
         balances = [payment['Remaining Balance'] for payment in schedule]
 
         # Plotting the principal and interest payments
         fig, ax = plt.subplots(figsize=(12, 6), constrained_layout=True)
-        ax.plot(months, principal_payments, label='Principal Payment', color='green')
-        ax.plot(months, interest_payments, label='Interest Payment', color='red')
+        ax.plot(years, principal_payments, label='Principal Payment', color='green')
+        ax.plot(years, interest_payments, label='Interest Payment', color='red')
         ax.set_title('Amortization Schedule')
-        ax.set_xlabel('Month')
+        ax.set_xlabel('Years')
         ax.set_ylabel(f'Amount ({currency_symbol})')
+        # Set x-axis ticks to show whole years
+        max_years = max(years)
+        ax.set_xticks(range(0, int(max_years) + 1, 5))  # Show ticks every 5 years
         ax.legend()
         ax.grid(True)
         # Save the plot to a file
@@ -232,10 +236,12 @@ def plot_amortization_schedule(schedule, currency_symbol):
 
         # Plotting the remaining balance over time
         fig, ax = plt.subplots(figsize=(12, 6), constrained_layout=True)
-        ax.plot(months, balances, label='Remaining Balance', color='blue')
+        ax.plot(years, balances, label='Remaining Balance', color='blue')
         ax.set_title('Remaining Balance Over Time')
-        ax.set_xlabel('Month')
+        ax.set_xlabel('Years')
         ax.set_ylabel(f'Balance ({currency_symbol})')
+        # Set x-axis ticks to show whole years
+        ax.set_xticks(range(0, int(max_years) + 1, 5))  # Show ticks every 5 years
         ax.legend()
         ax.grid(True)
         # Save the plot to a file
@@ -282,11 +288,30 @@ def main():
         annual_rate_input = input("Enter the annual interest rate (in %): ")
         annual_rate = Decimal(annual_rate_input)
 
-        months_input = input("Enter the loan term in months: ")
-        months = int(months_input)
-
-        # Validate all loan inputs together
-        validate_loan_inputs(principal, annual_rate, months)
+        # Get loan term in years and months
+        years_input = input("Enter the loan term in years: ")
+        months_input = input("Enter any additional months (0-11): ")
+        
+        try:
+            years = int(years_input)
+            additional_months = int(months_input)
+            
+            if years < 0:
+                raise ValueError("Years cannot be negative.")
+            if additional_months < 0 or additional_months > 11:
+                raise ValueError("Additional months must be between 0 and 11.")
+                
+            # Convert to total months
+            months = (years * 12) + additional_months
+            
+            # Validate all loan inputs together
+            validate_loan_inputs(principal, annual_rate, months)
+        except ValueError as e:
+            if "invalid literal for int()" in str(e):
+                print("Please enter valid numbers for years and months.")
+            else:
+                print(str(e))
+            return
 
         start_month_input = input("Enter the start month (e.g., January, Jan): ")
         start_year_input = input("Enter the start year (e.g., 2023): ")
