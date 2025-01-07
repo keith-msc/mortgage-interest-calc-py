@@ -80,7 +80,7 @@ The script will prompt you for the following inputs:
 1. **Loan Amount (Principal)**: The total amount of the loan (e.g., `100000`).
 2. **Annual Interest Rate**: The annual interest rate in percent (e.g., `5`).
 3. **Loan Term in Months**: The total number of months over which the loan will be repaid (e.g., `360`).
-4. **Start Month**: The month when the loan starts (`1` for January, `12` for December).
+4. **Start Month**: The month when the loan starts (e.g., `January` or `Jan`).
 5. **Start Year**: The year when the loan starts (e.g., `2023`).
 6. **Currency Symbol**: Choose your currency symbol by entering `'euro'`, `'dollar'`, or `'sterling'`.
 7. **CSV File Name**: The name of the CSV file to export the amortization schedule (e.g., `schedule.csv`).
@@ -92,7 +92,7 @@ The script will prompt you for the following inputs:
 Enter the loan amount (principal): 200000
 Enter the annual interest rate (in %): 3.5
 Enter the loan term in months: 360
-Enter the start month (1-12): 6
+Enter the start month (e.g., January, Jan): June
 Enter the start year (e.g., 2023): 2023
 Choose your currency symbol - enter 'euro', 'dollar', or 'sterling': sterling
 Enter the CSV file name to export (e.g., schedule.csv): mortgage_schedule.csv
@@ -164,4 +164,3 @@ python amortization_schedule.py
 ## Contact
 
 If you encounter any issues or have questions, please open an issue on the [GitHub repository](https://github.com/keith-msc/mortgage-interest-calc-py) or contact the maintainer.
-

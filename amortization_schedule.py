@@ -10,19 +10,50 @@ import matplotlib.pyplot as plt
 
 getcontext().prec = 10  # Set desired precision for Decimal calculations
 
-def validate_month_year(month, year):
+def get_month_number(month_str):
+    """
+    Convert month name to month number.
+
+    Args:
+        month_str (str): Month name (e.g., 'January', 'Jan', 'JANUARY', 'JAN')
+
+    Returns:
+        int: Month number (1-12) if valid, None if invalid
+    """
+    month_str = month_str.strip().lower()
+    month_map = {
+        'january': 1, 'jan': 1,
+        'february': 2, 'feb': 2,
+        'march': 3, 'mar': 3,
+        'april': 4, 'apr': 4,
+        'may': 5,
+        'june': 6, 'jun': 6,
+        'july': 7, 'jul': 7,
+        'august': 8, 'aug': 8,
+        'september': 9, 'sep': 9, 'sept': 9,
+        'october': 10, 'oct': 10,
+        'november': 11, 'nov': 11,
+        'december': 12, 'dec': 12
+    }
+    return month_map.get(month_str)
+
+def validate_month_year(month_str, year):
     """
     Validate and return a datetime object for the first day of the given month and year.
 
     Args:
-        month (int): Month (1-12)
+        month_str (str): Month name (e.g., 'January', 'Jan')
         year (int): Year (e.g., 2023)
 
     Returns:
         datetime.datetime or None: The datetime object if valid, else None.
     """
+    month_num = get_month_number(month_str)
+    if month_num is None:
+        return None
+    
     try:
-        start_date = datetime(year=year, month=month, day=1)
+        start_date = datetime(year=year, month=month_num, day=1)
         return start_date
     except ValueError:
         return None
@@ -38,7 +69,14 @@ def calculate_monthly_payment(principal, annual_rate, months):
 
     Returns:
         Decimal: The monthly payment amount.
+
+    Raises:
+        ValueError: If principal is negative or zero, or if months is zero.
     """
+    if principal <= 0:
+        raise ValueError("Principal must be greater than zero")
+    if months <= 0:
+        raise ValueError("Number of months must be greater than zero")
     if annual_rate == 0:
         monthly_payment = principal / Decimal(months)
     else:
@@ -131,7 +169,16 @@ def export_amortization_schedule_to_csv(schedule, file_name, currency_symbol):
         schedule (list): The amortization schedule as a list of dictionaries.
         file_name (str): The name of the CSV file to export to.
         currency_symbol (str): The currency symbol to use in the output.
+
+    Raises:
+        ValueError: If the filename contains invalid characters.
+        IOError: If there's an error writing to the file.
     """
+    # Validate filename
+    import os
+    if os.path.sep in file_name or '..' in file_name:
+        raise ValueError("Invalid characters in filename")
+    
     try:
         with open(file_name, 'w', newline='') as csv_file:
             fieldnames = ['Date', 'Month', 'Payment', 'Principal Payment', 'Interest Payment', 'LTV', 'Remaining Balance']
@@ -159,38 +206,69 @@ def plot_amortization_schedule(schedule, currency_symbol):
     Args:
         schedule (list): The amortization schedule as a list of dictionaries.
         currency_symbol (str): The currency symbol to use in the plots.
+
+    Raises:
+        Exception: If there's an error creating or saving the plots.
     """
-    months = [payment['Month'] for payment in schedule]
-    principal_payments = [payment['Principal Payment'] for payment in schedule]
-    interest_payments = [payment['Interest Payment'] for payment in schedule]
-    balances = [payment['Remaining Balance'] for payment in schedule]
+    try:
+        months = [payment['Month'] for payment in schedule]
+        principal_payments = [payment['Principal Payment'] for payment in schedule]
+        interest_payments = [payment['Interest Payment'] for payment in schedule]
+        balances = [payment['Remaining Balance'] for payment in schedule]
 
-    # Plotting the principal and interest payments
-    fig, ax = plt.subplots(figsize=(12, 6), constrained_layout=True)
-    ax.plot(months, principal_payments, label='Principal Payment', color='green')
-    ax.plot(months, interest_payments, label='Interest Payment', color='red')
-    ax.set_title('Amortization Schedule')
-    ax.set_xlabel('Month')
-    ax.set_ylabel(f'Amount ({currency_symbol})')
-    ax.legend()
-    ax.grid(True)
-    # Save the plot to a file
-    plt.savefig('amortization_schedule_payments.png')
-    print("Amortization schedule payments graph saved as 'amortization_schedule_payments.png'")
-    plt.show()
+        # Plotting the principal and interest payments
+        fig, ax = plt.subplots(figsize=(12, 6), constrained_layout=True)
+        ax.plot(months, principal_payments, label='Principal Payment', color='green')
+        ax.plot(months, interest_payments, label='Interest Payment', color='red')
+        ax.set_title('Amortization Schedule')
+        ax.set_xlabel('Month')
+        ax.set_ylabel(f'Amount ({currency_symbol})')
+        ax.legend()
+        ax.grid(True)
+        # Save the plot to a file
+        plt.savefig('amortization_schedule_payments.png')
+        print("Amortization schedule payments graph saved as 'amortization_schedule_payments.png'")
+        plt.show()
 
-    # Plotting the remaining balance over time
-    fig, ax = plt.subplots(figsize=(12, 6), constrained_layout=True)
-    ax.plot(months, balances, label='Remaining Balance', color='blue')
-    ax.set_title('Remaining Balance Over Time')
-    ax.set_xlabel('Month')
-    ax.set_ylabel(f'Balance ({currency_symbol})')
-    ax.legend()
-    ax.grid(True)
-    # Save the plot to a file
-    plt.savefig('amortization_schedule_balance.png')
-    print("Remaining balance graph saved as 'amortization_schedule_balance.png'")
-    plt.show()
+        # Plotting the remaining balance over time
+        fig, ax = plt.subplots(figsize=(12, 6), constrained_layout=True)
+        ax.plot(months, balances, label='Remaining Balance', color='blue')
+        ax.set_title('Remaining Balance Over Time')
+        ax.set_xlabel('Month')
+        ax.set_ylabel(f'Balance ({currency_symbol})')
+        ax.legend()
+        ax.grid(True)
+        # Save the plot to a file
+        plt.savefig('amortization_schedule_balance.png')
+        print("Remaining balance graph saved as 'amortization_schedule_balance.png'")
+        plt.show()
+    except Exception as e:
+        print(f"An error occurred while creating the plots: {e}")
+
+def validate_loan_inputs(principal, annual_rate, months):
+    """
+    Validate loan input parameters.
+
+    Args:
+        principal (Decimal): The loan amount.
+        annual_rate (Decimal): The annual interest rate in percent.
+        months (int): The loan term in months.
+
+    Raises:
+        ValueError: If any input parameters are invalid.
+    """
+    if principal <= 0:
+        raise ValueError("Principal amount must be greater than zero.")
+    if principal > Decimal('1000000000'):  # 1 billion limit
+        raise ValueError("Principal amount is unreasonably high.")
+    if annual_rate < 0:
+        raise ValueError("Annual interest rate cannot be negative.")
+    if annual_rate > Decimal('100'):
+        raise ValueError("Annual interest rate cannot exceed 100%.")
+    if months <= 0:
+        raise ValueError("Loan term must be greater than zero months.")
+    if months > 600:  # 50 years limit
+        raise ValueError("Loan term cannot exceed 600 months (50 years).")
 
 def main():
     """
@@ -200,42 +278,36 @@ def main():
     try:
         principal_input = input("Enter the loan amount (principal): ")
         principal = Decimal(principal_input)
-        if principal <= 0:
-            print("Principal amount must be greater than zero.")
-            return
 
         annual_rate_input = input("Enter the annual interest rate (in %): ")
         annual_rate = Decimal(annual_rate_input)
-        if annual_rate < 0:
-            print("Annual interest rate cannot be negative.")
-            return
 
         months_input = input("Enter the loan term in months: ")
         months = int(months_input)
-        if months <= 0:
-            print("Loan term must be greater than zero months.")
-            return
 
-        start_month_input = input("Enter the start month (1-12): ")
-        start_month = int(start_month_input)
-        if not 1 <= start_month <= 12:
-            print("Start month must be between 1 and 12.")
-            return
+        # Validate all loan inputs together
+        validate_loan_inputs(principal, annual_rate, months)
 
+        start_month_input = input("Enter the start month (e.g., January, Jan): ")
         start_year_input = input("Enter the start year (e.g., 2023): ")
-        start_year = int(start_year_input)
-        if start_year <= 0:
-            print("Start year must be a positive integer.")
+        
+        try:
+            start_year = int(start_year_input)
+            if start_year <= 0:
+                print("Start year must be a positive integer.")
+                return
+        except ValueError:
+            print("Invalid year. Please enter a numeric value.")
             return
 
-    except ValueError:
-        print("Invalid input. Please enter numeric values.")
-        return
+        # Validate the start date
+        start_date = validate_month_year(start_month_input, start_year)
+        if not start_date:
+            print("Invalid month name or year. Please try again.")
+            return
 
-    # Validate the start date
-    start_date = validate_month_year(start_month, start_year)
-    if not start_date:
-        print("Invalid start month or year. Please try again.")
+    except ValueError as e:
+        print(f"Invalid input: {str(e)}")
         return
 
     # Prompt user for currency symbol
