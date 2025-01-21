@@ -14,12 +14,6 @@ from decimal import ROUND_HALF_EVEN
 getcontext().prec = 12  # 12-digit precision for all calculations
 getcontext().rounding = ROUND_HALF_EVEN  # Bankers' rounding for minimal bias
 
-# Special handling in amortization calculation:
-if balance - principal_payment < Decimal('-0.01'):
-    principal_payment = balance
-    monthly_payment = principal_payment + interest
-    balance = Decimal('0.00')
-
 from typing import Dict, Optional
 
 MONTH_MAP: Dict[str, int] = {}
