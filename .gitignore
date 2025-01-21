@@ -2,6 +2,11 @@
 *.csv
 *.png
 
+# Test and coverage
+.coverage
+.hypothesis/
+.pytest_cache/
+
 # Python
 __pycache__/
 *.py[cod]
