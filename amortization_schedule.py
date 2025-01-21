@@ -9,34 +9,32 @@ import csv
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
-getcontext().prec = 10  # Set desired precision for Decimal calculations
+# Precision financial rounding configuration
+from decimal import ROUND_HALF_EVEN
+getcontext().prec = 12  # 12-digit precision for all calculations
+getcontext().rounding = ROUND_HALF_EVEN  # Bankers' rounding for minimal bias
 
-def get_month_number(month_str):
-    """
-    Convert month name to month number.
+# Special handling in amortization calculation:
+if balance - principal_payment < Decimal('-0.01'):
+    principal_payment = balance
+    monthly_payment = principal_payment + interest
+    balance = Decimal('0.00')
 
-    Args:
-        month_str (str): Month name (e.g., 'January', 'Jan', 'JANUARY', 'JAN')
+from typing import Dict, Optional
 
-    Returns:
-        int: Month number (1-12) if valid, None if invalid
-    """
-    month_str = month_str.strip().lower()
-    month_map = {
-        'january': 1, 'jan': 1,
-        'february': 2, 'feb': 2,
-        'march': 3, 'mar': 3,
-        'april': 4, 'apr': 4,
-        'may': 5,
-        'june': 6, 'jun': 6,
-        'july': 7, 'jul': 7,
-        'august': 8, 'aug': 8,
-        'september': 9, 'sep': 9, 'sept': 9,
-        'october': 10, 'oct': 10,
-        'november': 11, 'nov': 11,
-        'december': 12, 'dec': 12
-    }
-    return month_map.get(month_str)
+MONTH_MAP: Dict[str, int] = {}
+# Build full month map programmatically
+for idx in range(1, 13):
+    month = datetime(2000, idx, 1).strftime('%B').lower()
+    MONTH_MAP[month] = idx
+    MONTH_MAP[month[:3]] = idx
+    # Handle "sept" special case
+    if idx == 9:
+        MONTH_MAP['sept'] = idx
+
+def get_month_number(month_str: str) -> Optional[int]:
+    """Convert month name to number with comprehensive mapping."""
+    return MONTH_MAP.get(month_str.strip().lower())
 
 def validate_month_year(month_str, year):
     """
@@ -199,10 +197,24 @@ def export_amortization_schedule_to_csv(schedule, file_name, currency_symbol, pr
         ValueError: If the filename contains invalid characters.
         IOError: If there's an error writing to the file.
     """
-    # Validate filename
-    import os
-    if os.path.sep in file_name or '..' in file_name:
-        raise ValueError("Invalid characters in filename")
+    # Enhanced security validation
+    import re
+    from pathlib import Path
+    
+    # Prevent directory traversal and normalize path
+    try:
+        clean_path = Path(file_name).resolve().relative_to(Path.cwd())
+    except ValueError:
+        raise ValueError("Filename cannot contain path components - must be in current directory")
+    
+    # Strict filename validation using fullmatch
+    if not re.fullmatch(r'^[\w\-\.]+$', file_name):
+        allowed_chars = "a-zA-Z0-9, hyphen (-), underscore (_), and period (.)"
+        raise ValueError(f"Invalid filename. Only {allowed_chars} characters are allowed")
+    
+    # Block reserved system filenames
+    if file_name.lower() in {'settings.cfg', 'config.ini'}:
+        raise ValueError("Reserved system filename not permitted")
     
     try:
         with open(file_name, 'w', newline='') as csv_file:
