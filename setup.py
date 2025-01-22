@@ -10,7 +10,7 @@ setup(
     version="1.0.0",
     author="Keith Morgan",
     author_email="keith.morgan@ucdconnect.ie",
-    description="A user-friendly mortgage calculator with visualization and export features",
+    description="Mortgage Interest Calculator (Amortization) - Visualize and analyze your mortgage payments",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/keith-msc/mortgage-interest-calc-py",
