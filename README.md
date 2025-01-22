@@ -5,24 +5,45 @@
 
 A user-friendly mortgage calculator that helps you understand your loan payments, interest costs, and payment schedule. Get clear visualizations and detailed breakdowns of your mortgage payments.
 
+## Prerequisites
+
+1. Python Installation
+   - Download and install Python 3.6 or higher from [python.org](https://python.org)
+   - During installation on Windows, check "Add Python to PATH"
+   - Verify installation: `python --version`
+
+2. Virtual Environment (Recommended)
+   ```bash
+   # Create virtual environment
+   python -m venv venv
+
+   # Activate virtual environment
+   # On Windows:
+   venv\Scripts\activate
+   # On macOS/Linux:
+   source venv/bin/activate
+   ```
+
+3. Pip Installation (if needed)
+   - Pip should come with Python, verify with: `pip --version`
+   - If missing, install with: `python -m ensurepip --upgrade`
+
 ## Quick Start
 
-### Option 1: Run from cloned repository
 ```bash
+# Clone the repository
+git clone https://github.com/keith-msc/mortgage-interest-calc-py.git
+cd mortgage-interest-calc-py
+
+# Set up and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
 # Install dependencies
 pip install -r requirements.txt
 
 # Run the calculator
 python run_calculator.py
-```
-
-### Option 2: Install as a package
-```bash
-# Install the calculator
-pip install mortgage-calculator
-
-# Run the calculator
-mortgage-calculator
 ```
 
 ## Features
@@ -41,7 +62,10 @@ mortgage-calculator
 
 ## Usage
 
-1. Run the calculator using either method above
+1. Run the calculator:
+   ```bash
+   python run_calculator.py
+   ```
 
 2. Enter your loan details:
    - Loan amount (e.g., 250000)
