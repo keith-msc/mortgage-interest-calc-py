@@ -12,19 +12,7 @@ A user-friendly mortgage calculator that helps you understand your loan payments
    - During installation on Windows, check "Add Python to PATH"
    - Verify installation: `python --version`
 
-2. Virtual Environment (Recommended)
-   ```bash
-   # Create virtual environment
-   python -m venv venv
-
-   # Activate virtual environment
-   # On Windows:
-   venv\Scripts\activate
-   # On macOS/Linux:
-   source venv/bin/activate
-   ```
-
-3. Pip Installation (if needed)
+2. Pip Installation (if needed)
    - Pip should come with Python, verify with: `pip --version`
    - If missing, install with: `python -m ensurepip --upgrade`
 
