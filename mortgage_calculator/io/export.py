@@ -21,6 +21,7 @@ class LoanSummary:
     monthly_payment: Decimal
     total_interest: Decimal
     currency_symbol: str
+    deposit: Optional[Decimal] = None
 
     @property
     def total_cost(self) -> Decimal:
@@ -41,6 +42,18 @@ class LoanSummary:
     def remaining_months(self) -> int:
         """Get remaining months after years."""
         return self.months % 12
+
+    @property
+    def property_value(self) -> Decimal:
+        """Calculate total property value."""
+        return self.principal + (self.deposit or Decimal('0'))
+
+    @property
+    def deposit_percentage(self) -> Optional[Decimal]:
+        """Calculate deposit as percentage of property value."""
+        if self.deposit is None or self.deposit == 0:
+            return None
+        return (self.deposit / self.property_value * 100).quantize(Decimal('0.1'))
 
     def format_amount(self, amount: Decimal) -> str:
         """Format monetary amount with currency symbol."""
@@ -90,29 +103,112 @@ def _export_to_csv(
     with open(file_path, 'w', newline='') as csv_file:
         writer = csv.writer(csv_file)
         
-        # Write loan summary section
-        writer.writerow(['Loan Summary'])
-        writer.writerow(['Principal Amount',
-                        loan_summary.format_amount(loan_summary.principal)])
-        writer.writerow(['Annual Interest Rate', f"{loan_summary.annual_rate}%"])
-        writer.writerow(['Loan Term',
-                        f"{loan_summary.years} years {loan_summary.remaining_months} months"])
-        writer.writerow(['Monthly Payment',
-                        loan_summary.format_amount(loan_summary.monthly_payment)])
-        writer.writerow(['Total Interest',
-                        loan_summary.format_amount(loan_summary.total_interest)])
-        writer.writerow(['Total Cost',
-                        loan_summary.format_amount(loan_summary.total_cost)])
-        writer.writerow([])  # Empty row for spacing
-        
-        # Write amortization schedule
-        writer.writerow(['Amortization Schedule'])
+        # Write loan summary section with consistent columns
         fieldnames = [
             'Date', 'Month', 'Payment', 'Principal_Payment',
             'Interest_Payment', 'LTV', 'Remaining_Balance'
         ]
         dict_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         dict_writer.writeheader()
+        
+        # Write summary as special rows with consistent column count
+        summary_rows = [
+            {
+                'Date': 'Loan Summary',
+                'Month': '',
+                'Payment': '',
+                'Principal_Payment': f"Property Value: {loan_summary.format_amount(loan_summary.property_value)}",
+                'Interest_Payment': '',
+                'LTV': '',
+                'Remaining_Balance': ''
+            },
+            *([] if loan_summary.deposit is None else [{
+                'Date': '',
+                'Month': '',
+                'Payment': '',
+                'Principal_Payment': f"Deposit: {loan_summary.format_amount(loan_summary.deposit)} ({loan_summary.deposit_percentage:.1f}%)",
+                'Interest_Payment': '',
+                'LTV': '',
+                'Remaining_Balance': ''
+            }]),
+            {
+                'Date': '',
+                'Month': '',
+                'Payment': '',
+                'Principal_Payment': f"Loan Amount: {loan_summary.format_amount(loan_summary.principal)}",
+                'Interest_Payment': '',
+                'LTV': '',
+                'Remaining_Balance': ''
+            },
+            {
+                'Date': '',
+                'Month': '',
+                'Payment': '',
+                'Principal_Payment': f"Annual Rate: {loan_summary.annual_rate}%",
+                'Interest_Payment': '',
+                'LTV': '',
+                'Remaining_Balance': ''
+            },
+            {
+                'Date': '',
+                'Month': '',
+                'Payment': '',
+                'Principal_Payment': f"Term: {loan_summary.years} years {loan_summary.remaining_months} months",
+                'Interest_Payment': '',
+                'LTV': '',
+                'Remaining_Balance': ''
+            },
+            {
+                'Date': '',
+                'Month': '',
+                'Payment': '',
+                'Principal_Payment': f"Monthly Payment: {loan_summary.format_amount(loan_summary.monthly_payment)}",
+                'Interest_Payment': '',
+                'LTV': '',
+                'Remaining_Balance': ''
+            },
+            {
+                'Date': '',
+                'Month': '',
+                'Payment': '',
+                'Principal_Payment': f"Total Interest: {loan_summary.format_amount(loan_summary.total_interest)}",
+                'Interest_Payment': '',
+                'LTV': '',
+                'Remaining_Balance': ''
+            },
+            {
+                'Date': '',
+                'Month': '',
+                'Payment': '',
+                'Principal_Payment': f"Total Cost: {loan_summary.format_amount(loan_summary.total_cost)}",
+                'Interest_Payment': '',
+                'LTV': '',
+                'Remaining_Balance': ''
+            },
+            {
+                'Date': '',
+                'Month': '',
+                'Payment': '',
+                'Principal_Payment': '',
+                'Interest_Payment': '',
+                'LTV': '',
+                'Remaining_Balance': ''
+            },
+            {
+                'Date': 'Amortization Schedule',
+                'Month': '',
+                'Payment': '',
+                'Principal_Payment': '',
+                'Interest_Payment': '',
+                'LTV': '',
+                'Remaining_Balance': ''
+            }
+        ]
+        
+        # Write summary rows
+        for row in summary_rows:
+            dict_writer.writerow(row)
+        # Write schedule rows
         
         for payment in schedule:
             formatted_payment = {
@@ -135,7 +231,13 @@ def _export_to_txt(
     with open(file_path, 'w') as txt_file:
         # Write loan summary
         txt_file.write("=== Loan Summary ===\n")
-        txt_file.write(f"Principal Amount: {loan_summary.format_amount(loan_summary.principal)}\n")
+        txt_file.write(f"Property Value: {loan_summary.format_amount(loan_summary.property_value)}\n")
+        if loan_summary.deposit is not None:
+            txt_file.write(
+                f"Deposit: {loan_summary.format_amount(loan_summary.deposit)} "
+                f"({loan_summary.deposit_percentage:.1f}%)\n"
+            )
+        txt_file.write(f"Loan Amount: {loan_summary.format_amount(loan_summary.principal)}\n")
         txt_file.write(f"Annual Interest Rate: {loan_summary.annual_rate}%\n")
         txt_file.write(
             f"Loan Term: {loan_summary.years} years {loan_summary.remaining_months} months\n"
@@ -179,7 +281,13 @@ def print_loan_summary(loan_summary: LoanSummary) -> None:
         loan_summary (LoanSummary): Loan summary information
     """
     print("\n=== Loan Summary ===")
-    print(f"Principal Amount: {loan_summary.format_amount(loan_summary.principal)}")
+    print(f"Property Value: {loan_summary.format_amount(loan_summary.property_value)}")
+    if loan_summary.deposit is not None:
+        print(
+            f"Deposit: {loan_summary.format_amount(loan_summary.deposit)} "
+            f"({loan_summary.deposit_percentage:.1f}%)"
+        )
+    print(f"Loan Amount: {loan_summary.format_amount(loan_summary.principal)}")
     print(f"Annual Interest Rate: {loan_summary.annual_rate}%")
     print(
         f"Loan Term: {loan_summary.years} years {loan_summary.remaining_months} months"

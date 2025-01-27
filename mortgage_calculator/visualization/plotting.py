@@ -216,22 +216,32 @@ def plot_balance_over_time(
         
         # Add annotations if enabled
         if config.show_annotations:
-            # Add milestone markers
-            milestones = [75, 50, 25]  # Percentage milestones
+            # Add milestone markers for percentage paid (25%, 50%, 75%)
+            milestones = [25, 50, 75]  # Percentage milestones
             for milestone in milestones:
-                for i, ltv in enumerate(entry['LTV'] for entry in schedule):
-                    if float(ltv) <= milestone:
-                        plt.plot(dates[i], balances[i], 'o',
-                               color=config.colors['text'])
-                        plt.annotate(
-                            f'{milestone}% Paid',
-                            xy=(dates[i], balances[i]),
-                            xytext=(10, 10),
-                            textcoords='offset points',
-                            fontsize=config.annotation_fontsize,
-                            color=config.colors['text']
+                # Calculate percentage paid for each point
+                percentages_paid = [100 - float(entry['LTV']) for entry in schedule]
+                try:
+                    # Find first occurrence where percentage paid reaches milestone
+                    i = next(i for i, paid in enumerate(percentages_paid) if paid >= milestone)
+                    plt.plot(dates[i], balances[i], 'o',
+                           color=config.colors['text'])
+                    plt.annotate(
+                        f'{milestone}% Paid',
+                        xy=(dates[i], balances[i]),
+                        xytext=(10, 10),
+                        textcoords='offset points',
+                        fontsize=config.annotation_fontsize,
+                        color=config.colors['text'],
+                        bbox=dict(  # Add background box for better visibility
+                            facecolor='white' if config.theme == "light" else 'black',
+                            alpha=0.8,
+                            edgecolor='none',
+                            pad=2
                         )
-                        break
+                    )
+                except StopIteration:
+                    continue  # Skip if milestone not reached
         
         # Rotate x-axis labels
         plt.xticks(rotation=45)
