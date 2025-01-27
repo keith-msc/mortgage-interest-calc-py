@@ -1,132 +1,214 @@
 """Main entry point for the mortgage calculator application."""
 
-from decimal import Decimal
-from typing import Optional, Tuple
+from pathlib import Path
+from typing import Optional
 
-from .core import (
+from .core.calculations import (
     calculate_monthly_payment,
     create_amortization_schedule,
-    validate_loan_inputs
+    LoanDetails
 )
-from .io import (
-    print_welcome_message,
-    get_loan_amount,
-    get_interest_rate,
-    get_loan_term,
-    get_start_date,
-    get_currency_symbol,
-    get_visualization_preference,
-    get_export_filename,
-    print_completion_message,
-    export_amortization_schedule_to_csv,
+from .io.cli import (
+    collect_user_input,
+    print_colored,
+    print_error,
+    print_progress,
+    print_success,
+    CLIError,
+    UserInput
+)
+from .io.export import (
+    export_amortization_schedule,
     print_loan_summary,
-    print_amortization_schedule
+    print_amortization_schedule,
+    LoanSummary,
+    ExportError
 )
-from .visualization import (
+from .visualization.plotting import (
     plot_amortization_schedule,
-    plot_balance_over_time
+    plot_balance_over_time,
+    PlotConfig,
+    PlottingError
 )
 
-def get_validated_inputs() -> Optional[Tuple[Decimal, Decimal, int, str]]:
+def create_output_directory() -> Path:
+    """Create output directory for generated files."""
+    output_dir = Path("mortgage_output")
+    output_dir.mkdir(exist_ok=True)
+    return output_dir
+
+def process_loan_calculation(user_input: UserInput) -> Optional[tuple[LoanDetails, LoanSummary, list]]:
     """
-    Get and validate all required inputs from the user.
+    Process loan calculation based on user input.
+    
+    Args:
+        user_input (UserInput): Validated user input data
     
     Returns:
-        Optional[Tuple[Decimal, Decimal, int, str]]: Tuple of (principal, rate, months, currency)
-        or None if validation fails
+        Optional[tuple[LoanDetails, LoanSummary, list]]: Loan details, summary and schedule if successful
     """
-    # Get loan amount
-    principal = get_loan_amount()
-    if principal is None:
-        return None
-
-    # Get interest rate
-    annual_rate = get_interest_rate()
-    if annual_rate is None:
-        return None
-
-    # Get loan term
-    term = get_loan_term()
-    if term is None:
-        return None
-    years, additional_months = term
-    total_months = (years * 12) + additional_months
-
-    # Get start date
-    start_date = get_start_date()
-    if start_date is None:
-        return None
-
-    # Get currency
-    currency_symbol = get_currency_symbol()
-
-    # Validate all inputs together
     try:
-        validate_loan_inputs(principal, annual_rate, total_months)
-        return principal, annual_rate, total_months, start_date, currency_symbol
-    except ValueError as e:
-        print(f"Error: {e}")
+        print_progress("Calculating loan details")
+        
+        # Create loan details
+        loan = LoanDetails(
+            principal=user_input.principal,
+            annual_rate=user_input.annual_rate,
+            months=user_input.total_months,
+            start_date=user_input.start_date
+        )
+        
+        # Calculate monthly payment
+        monthly_payment = calculate_monthly_payment(
+            loan.principal,
+            loan.annual_rate,
+            loan.months
+        )
+        
+        # Create amortization schedule
+        schedule, total_interest = create_amortization_schedule(loan)
+        
+        # Create loan summary
+        loan_summary = LoanSummary(
+            principal=loan.principal,
+            annual_rate=loan.annual_rate,
+            months=loan.months,
+            monthly_payment=monthly_payment,
+            total_interest=total_interest,
+            currency_symbol=user_input.currency_symbol
+        )
+        
+        return loan, loan_summary, schedule
+        
+    except Exception as e:
+        print_error(f"Calculation failed: {str(e)}")
         return None
+
+def export_results(
+    schedule: list,
+    loan_summary: LoanSummary,
+    output_dir: Path,
+    filename: str
+) -> Optional[Path]:
+    """
+    Export calculation results to file.
+    
+    Args:
+        schedule (list): Amortization schedule
+        loan_summary (LoanSummary): Loan summary information
+        output_dir (Path): Output directory
+        filename (str): Base filename
+    
+    Returns:
+        Optional[Path]: Path to exported file if successful
+    """
+    try:
+        print_progress("Exporting results")
+        
+        # Ensure filename has extension
+        if not filename.endswith(('.csv', '.txt')):
+            filename += '.csv'
+        
+        export_path = output_dir / filename
+        export_amortization_schedule(
+            schedule=schedule,
+            loan_summary=loan_summary,
+            file_path=str(export_path)
+        )
+        
+        return export_path
+    
+    except ExportError as e:
+        print_error(f"Export failed: {str(e)}")
+        return None
+
+def generate_visualizations(
+    schedule: list,
+    loan_summary: LoanSummary,
+    output_dir: Path,
+    dark_mode: bool = False
+) -> None:
+    """Generate visualization plots."""
+    try:
+        print_progress("Generating visualizations")
+        
+        plot_config = PlotConfig(
+            theme="dark" if dark_mode else "light",
+            show_annotations=True
+        )
+        
+        # Payment breakdown plot
+        payments_plot = output_dir / "payment_breakdown.png"
+        plot_amortization_schedule(
+            schedule=schedule,
+            currency_symbol=loan_summary.currency_symbol,
+            principal=loan_summary.principal,
+            save_path=str(payments_plot),
+            config=plot_config
+        )
+        print_colored(f"Payment breakdown plot saved as: {payments_plot}", "green")
+        
+        # Balance plot
+        balance_plot = output_dir / "balance_progress.png"
+        plot_balance_over_time(
+            schedule=schedule,
+            currency_symbol=loan_summary.currency_symbol,
+            principal=loan_summary.principal,
+            save_path=str(balance_plot),
+            config=plot_config
+        )
+        print_colored(f"Balance progress plot saved as: {balance_plot}", "green")
+        
+    except PlottingError as e:
+        print_error(f"Visualization failed: {str(e)}")
 
 def main() -> None:
     """Main function to run the mortgage calculator."""
-    print_welcome_message()
-
-    # Get and validate all inputs
-    inputs = get_validated_inputs()
-    if inputs is None:
-        return
-
-    principal, annual_rate, months, start_date, currency_symbol = inputs
-
     try:
-        # Calculate monthly payment
-        monthly_payment = calculate_monthly_payment(principal, annual_rate, months)
-
-        # Create amortization schedule
-        schedule, total_interest = create_amortization_schedule(
-            principal, annual_rate, months, start_date
+        # Collect user input
+        user_input = collect_user_input()
+        
+        # Create output directory
+        output_dir = create_output_directory()
+        
+        # Process calculations
+        result = process_loan_calculation(user_input)
+        if not result:
+            return
+        
+        loan, loan_summary, schedule = result
+        
+        # Print initial results
+        print_loan_summary(loan_summary)
+        print_amortization_schedule(schedule, loan_summary, max_entries=12)
+        
+        # Export results
+        export_path = export_results(
+            schedule,
+            loan_summary,
+            output_dir,
+            user_input.export_filename
         )
-
-        # Print loan summary and amortization schedule
-        print_loan_summary(
-            principal, annual_rate, months,
-            monthly_payment, total_interest, currency_symbol
-        )
-        print_amortization_schedule(schedule, currency_symbol)
-
-        # Export to CSV
-        csv_file = get_export_filename()
-        export_amortization_schedule_to_csv(
-            schedule, csv_file, currency_symbol,
-            principal, annual_rate, months,
-            monthly_payment, total_interest
-        )
-
+        if not export_path:
+            return
+        
         # Generate visualizations if requested
-        if get_visualization_preference():
-            # Create payment breakdown graph
-            plot_amortization_schedule(
+        if user_input.show_graphs:
+            generate_visualizations(
                 schedule,
-                currency_symbol,
-                principal,
-                'amortization_schedule_payments.png'
+                loan_summary,
+                output_dir,
+                dark_mode=False  # Could make this configurable
             )
-            
-            # Create balance over time graph
-            plot_balance_over_time(
-                schedule,
-                currency_symbol,
-                principal,
-                'amortization_schedule_balance.png'
-            )
+        
+        print_success("\nMortgage calculation completed successfully!")
+        print_colored(f"All output files have been saved to: {output_dir}", "cyan")
 
-        # Print completion message
-        print_completion_message(monthly_payment, total_interest, currency_symbol, csv_file)
-
+    except CLIError as e:
+        print_error(f"Input error: {str(e)}")
     except Exception as e:
-        print(f"\nAn error occurred: {e}")
-        print("Please try again with valid inputs.")
+        print_error(f"An unexpected error occurred: {str(e)}")
+        print_colored("Please try again with valid inputs.", "yellow")
 
 if __name__ == '__main__':
     main()

@@ -1,131 +1,183 @@
-"""Input validation functions for mortgage calculator."""
+"""Input validation and formatting functions."""
 
+import re
 from datetime import datetime
-from typing import Optional, Dict
+from decimal import Decimal, InvalidOperation
+from pathlib import Path
+from typing import Optional
 
-MONTH_MAP: Dict[str, int] = {}
-# Build full month map programmatically
-for idx in range(1, 13):
-    month = datetime(2000, idx, 1).strftime('%B').lower()
-    MONTH_MAP[month] = idx
-    MONTH_MAP[month[:3]] = idx
-    # Handle "sept" special case
-    if idx == 9:
-        MONTH_MAP['sept'] = idx
+class LoanValidationError(Exception):
+    """Custom exception for loan validation errors."""
+    pass
 
-def get_month_number(month_str: str) -> Optional[int]:
+def validate_loan_inputs(
+    principal: Decimal,
+    annual_rate: Decimal,
+    months: int
+) -> None:
     """
-    Convert month name to number with comprehensive mapping.
+    Validate loan input parameters.
     
     Args:
-        month_str (str): Month name (e.g., 'January', 'Jan')
+        principal (Decimal): Original loan amount
+        annual_rate (Decimal): Annual interest rate
+        months (int): Total number of months
     
-    Returns:
-        Optional[int]: Month number (1-12) if valid, None if invalid
+    Raises:
+        LoanValidationError: If any input is invalid
     """
-    return MONTH_MAP.get(month_str.strip().lower())
+    if principal <= 0:
+        raise LoanValidationError("Principal must be greater than zero")
+    if principal > Decimal('1000000000'):  # 1 billion
+        raise LoanValidationError("Principal amount is unreasonably large")
+    
+    if annual_rate < 0:
+        raise LoanValidationError("Interest rate cannot be negative")
+    if annual_rate > 25:
+        raise LoanValidationError("Interest rate cannot exceed 25%")
+    
+    if months <= 0:
+        raise LoanValidationError("Loan term must be greater than zero months")
+    if months > 600:  # 50 years
+        raise LoanValidationError("Loan term cannot exceed 50 years")
 
 def validate_month_year(month_str: str, year: int) -> Optional[datetime]:
     """
-    Validate and return a datetime object for the first day of the given month and year.
-
+    Validate and parse month and year into datetime.
+    
     Args:
-        month_str (str): Month name (e.g., 'January', 'Jan')
-        year (int): Year (e.g., 2023)
-
+        month_str (str): Month name (e.g., "January" or "Jan")
+        year (int): Year number
+    
     Returns:
-        Optional[datetime]: The datetime object if valid, None if invalid
+        Optional[datetime]: Parsed datetime or None if invalid
     """
-    month_num = get_month_number(month_str)
-    if month_num is None:
-        return None
+    # Map of valid month names and abbreviations
+    month_map = {
+        'january': 1, 'jan': 1,
+        'february': 2, 'feb': 2,
+        'march': 3, 'mar': 3,
+        'april': 4, 'apr': 4,
+        'may': 5,
+        'june': 6, 'jun': 6,
+        'july': 7, 'jul': 7,
+        'august': 8, 'aug': 8,
+        'september': 9, 'sep': 9, 'sept': 9,
+        'october': 10, 'oct': 10,
+        'november': 11, 'nov': 11,
+        'december': 12, 'dec': 12
+    }
     
     try:
-        start_date = datetime(year=year, month=month_num, day=1)
-        return start_date
-    except ValueError:
+        month_num = month_map.get(month_str.lower())
+        if not month_num:
+            return None
+        
+        if year <= 1900 or year > 2100:
+            return None
+            
+        return datetime(year, month_num, 1)
+    except (ValueError, AttributeError):
         return None
 
-def format_currency(amount: float, currency_symbol: str) -> str:
+def validate_currency_choice(choice: str) -> str:
     """
-    Format currency with thousands separator and currency symbol.
+    Validate and convert currency choice to symbol.
     
     Args:
-        amount (float): The amount to format
-        currency_symbol (str): The currency symbol to use (e.g., '$', '€', '£')
+        choice (str): Currency name (euro, dollar, sterling)
     
     Returns:
-        str: Formatted currency string
-    """
-    return f"{currency_symbol}{amount:,.2f}"
-
-def validate_currency_choice(currency_choice: str) -> str:
-    """
-    Validate and return the appropriate currency symbol.
-    
-    Args:
-        currency_choice (str): User's currency choice ('euro', 'dollar', 'sterling')
-    
-    Returns:
-        str: Currency symbol ('€', '$', '£')
+        str: Currency symbol
     
     Raises:
         ValueError: If currency choice is invalid
     """
     currency_map = {
         'euro': '€',
+        'eur': '€',
         'dollar': '$',
-        'sterling': '£'
+        'usd': '$',
+        'sterling': '£',
+        'gbp': '£',
+        'pound': '£'
     }
     
-    choice = currency_choice.strip().lower()
-    if choice not in currency_map:
+    symbol = currency_map.get(choice.lower())
+    if not symbol:
         raise ValueError(
-            f"Invalid currency choice. Must be one of: {', '.join(currency_map.keys())}"
+            "Invalid currency choice. Please choose 'euro', 'dollar', or 'sterling'"
         )
     
-    return currency_map[choice]
+    return symbol
 
 def validate_file_name(file_name: str) -> str:
     """
-    Validate and clean file name for CSV export.
+    Validate and clean file name for export.
     
     Args:
-        file_name (str): The proposed file name
+        file_name (str): Proposed file name
     
     Returns:
-        str: Cleaned file name with .csv extension
+        str: Cleaned file name
     
     Raises:
-        ValueError: If file name contains invalid characters or is a reserved name
+        ValueError: If file name is invalid
     """
-    import re
-    from pathlib import Path
+    # Remove any directory path
+    file_name = Path(file_name).name
     
-    # Clean up the filename
-    file_name = file_name.strip()
+    # Check for empty name
+    if not file_name:
+        raise ValueError("File name cannot be empty")
     
-    # Remove .csv extension if present, we'll add it back later
-    if file_name.lower().endswith('.csv'):
-        file_name = file_name[:-4]
+    # Remove or replace invalid characters
+    clean_name = re.sub(r'[<>:"/\\|?*]', '_', file_name)
     
-    # Strict filename validation
-    if not re.match(r'^[\w\-\.]+$', file_name):
-        raise ValueError(
-            "Invalid filename. Only letters, numbers, hyphen (-), "
-            "underscore (_), and period (.) are allowed"
-        )
+    # Ensure it has an extension
+    if not clean_name.endswith(('.csv', '.txt')):
+        clean_name += '.csv'
     
-    # Block reserved system filenames
-    if file_name.lower() in {'settings', 'config', 'con', 'prn', 'aux', 'nul'}:
-        raise ValueError("Reserved system filename not permitted")
+    return clean_name
+
+def format_currency(amount: Decimal, symbol: str) -> str:
+    """
+    Format decimal amount as currency string.
     
-    # Add .csv extension
-    file_name = file_name + '.csv'
+    Args:
+        amount (Decimal): Amount to format
+        symbol (str): Currency symbol
     
-    # Prevent directory traversal and normalize path
+    Returns:
+        str: Formatted currency string
+    """
     try:
-        clean_path = Path(file_name).resolve().relative_to(Path.cwd())
-        return str(clean_path)
-    except ValueError:
-        raise ValueError("Filename cannot contain path components")
+        # Format with thousands separator and 2 decimal places
+        formatted = f"{amount:,.2f}"
+        
+        # Add currency symbol based on type
+        if symbol == '€':
+            return f"{symbol}{formatted}"
+        elif symbol == '£':
+            return f"£{formatted}"
+        else:  # Default to $ format
+            return f"${formatted}"
+            
+    except (InvalidOperation, ValueError, TypeError):
+        return f"{symbol}0.00"
+
+def format_percentage(value: Decimal, decimal_places: int = 1) -> str:
+    """
+    Format decimal value as percentage string.
+    
+    Args:
+        value (Decimal): Value to format
+        decimal_places (int): Number of decimal places
+    
+    Returns:
+        str: Formatted percentage string
+    """
+    try:
+        return f"{value:.{decimal_places}f}%"
+    except (InvalidOperation, ValueError, TypeError):
+        return "0.0%"
