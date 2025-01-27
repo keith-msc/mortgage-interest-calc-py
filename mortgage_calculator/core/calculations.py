@@ -1,129 +1,196 @@
 """Core calculation functions for mortgage amortization."""
 
-from decimal import Decimal, ROUND_HALF_EVEN
+from dataclasses import dataclass
+from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime
+from typing import Dict, List, Tuple, TypedDict
+from functools import lru_cache
 from dateutil.relativedelta import relativedelta
-from typing import Dict, List, Tuple, Optional
 
-# Configure decimal context
+# Configure decimal context for consistent rounding
 from decimal import getcontext
-getcontext().prec = 12
-getcontext().rounding = ROUND_HALF_EVEN
+getcontext().rounding = ROUND_HALF_UP
+getcontext().prec = 10
 
-def calculate_monthly_payment(principal: Decimal, annual_rate: Decimal, months: int) -> Decimal:
+class CalculationError(Exception):
+    """Custom exception for calculation errors."""
+    pass
+
+@dataclass(frozen=True)
+class LoanDetails:
+    """Container for loan details."""
+    principal: Decimal
+    annual_rate: Decimal
+    months: int
+    start_date: datetime
+
+    def __post_init__(self) -> None:
+        """Validate loan details after initialization."""
+        if self.principal <= 0:
+            raise CalculationError("Principal must be greater than zero")
+        if self.annual_rate < 0:
+            raise CalculationError("Interest rate cannot be negative")
+        if self.months <= 0:
+            raise CalculationError("Number of months must be greater than zero")
+        if self.months > 600:  # 50 years
+            raise CalculationError("Loan term cannot exceed 50 years")
+
+class AmortizationEntry(TypedDict):
+    """Type definition for amortization schedule entry."""
+    Date: str
+    Month: int
+    Payment: Decimal
+    Principal_Payment: Decimal
+    Interest_Payment: Decimal
+    Remaining_Balance: Decimal
+    LTV: Decimal
+
+@lru_cache(maxsize=128)
+def calculate_monthly_rate(annual_rate: Decimal) -> Decimal:
     """
-    Calculate the monthly payment for a loan.
-
+    Calculate monthly interest rate from annual rate.
+    
     Args:
-        principal (Decimal): The loan amount.
-        annual_rate (Decimal): The annual interest rate in percent.
-        months (int): The loan term in months.
-
+        annual_rate (Decimal): Annual interest rate as percentage
+    
     Returns:
-        Decimal: The monthly payment amount.
-
-    Raises:
-        ValueError: If principal is negative or zero, or if months is zero.
+        Decimal: Monthly interest rate as decimal
     """
-    if principal <= 0:
-        raise ValueError("Principal must be greater than zero")
-    if months <= 0:
-        raise ValueError("Number of months must be greater than zero")
-    
-    if annual_rate == 0:
-        monthly_payment = principal / Decimal(months)
-    else:
-        monthly_rate = (annual_rate / Decimal(100)) / Decimal(12)
-        numerator = principal * monthly_rate * (1 + monthly_rate) ** months
-        denominator = ((1 + monthly_rate) ** months) - Decimal(1)
-        monthly_payment = numerator / denominator
-    
-    return monthly_payment
+    return annual_rate / Decimal('100') / Decimal('12')
 
-def create_amortization_schedule(
+@lru_cache(maxsize=128)
+def calculate_monthly_payment(
     principal: Decimal,
     annual_rate: Decimal,
-    months: int,
-    start_date: datetime
-) -> Tuple[List[Dict], Decimal]:
+    months: int
+) -> Decimal:
     """
-    Create an amortization schedule for the loan.
-
+    Calculate monthly payment using the amortization formula.
+    
     Args:
-        principal (Decimal): The loan amount.
-        annual_rate (Decimal): The annual interest rate in percent.
-        months (int): The loan term in months.
-        start_date (datetime): The start date of the loan.
-
+        principal (Decimal): Original loan amount
+        annual_rate (Decimal): Annual interest rate as percentage
+        months (int): Total number of months
+    
     Returns:
-        tuple: A tuple containing the amortization schedule list and total interest paid.
-    """
-    monthly_payment = calculate_monthly_payment(principal, annual_rate, months)
-    balance = principal
-    current_date = start_date
-    amortization_schedule = []
-    total_interest = Decimal('0.00')
-
-    for i in range(1, months + 1):
-        if annual_rate == 0:
-            interest = Decimal('0.00')
-        else:
-            monthly_rate = (annual_rate / Decimal(100)) / Decimal(12)
-            interest = balance * monthly_rate
-
-        principal_payment = monthly_payment - interest
-
-        if balance - principal_payment < Decimal('-0.01'):
-            principal_payment = balance
-            monthly_payment = principal_payment + interest
-            balance = Decimal('0.00')
-        else:
-            balance -= principal_payment
-            balance = max(balance, Decimal('0.00'))
-
-        ltv = (balance / principal) * Decimal('100')
-
-        amortization_schedule.append({
-            'Date': current_date.strftime("%B %Y"),
-            'Month': i,
-            'Payment': monthly_payment,
-            'Principal Payment': principal_payment,
-            'Interest Payment': interest,
-            'Remaining Balance': balance,
-            'LTV': ltv
-        })
-        current_date += relativedelta(months=1)
-        total_interest += interest
-
-    return amortization_schedule, total_interest
-
-def validate_loan_inputs(principal: Decimal, annual_rate: Decimal, months: int) -> None:
-    """
-    Validate loan input parameters.
-
-    Args:
-        principal (Decimal): The loan amount.
-        annual_rate (Decimal): The annual interest rate in percent.
-        months (int): The loan term in months.
-
+        Decimal: Monthly payment amount
+    
     Raises:
-        ValueError: If any input parameters are invalid.
+        CalculationError: If calculation fails or inputs are invalid
     """
-    if principal <= 0:
-        raise ValueError("Principal amount must be greater than zero.")
-    if principal > Decimal('1000000000'):
-        raise ValueError("Principal amount is unreasonably high (max: 1 billion).")
+    try:
+        if principal <= 0:
+            raise CalculationError("Principal must be greater than zero")
+        if annual_rate < 0:
+            raise CalculationError("Interest rate cannot be negative")
+        if months <= 0:
+            raise CalculationError("Number of months must be greater than zero")
+        
+        # Handle 0% interest rate
+        if annual_rate == 0:
+            return (principal / Decimal(months)).quantize(Decimal('0.01'))
+        
+        monthly_rate = calculate_monthly_rate(annual_rate)
+        
+        # Calculate monthly payment using amortization formula
+        # P = L[c(1 + c)^n]/[(1 + c)^n - 1]
+        # where P = payment, L = principal, c = monthly rate, n = number of payments
+        numerator = monthly_rate * (1 + monthly_rate) ** months
+        denominator = (1 + monthly_rate) ** months - 1
+        payment = principal * (numerator / denominator)
+        
+        return payment.quantize(Decimal('0.01'))
     
-    if annual_rate < 0:
-        raise ValueError("Annual interest rate cannot be negative.")
-    if annual_rate > Decimal('100'):
-        raise ValueError("Annual interest rate cannot exceed 100%.")
-    if annual_rate > Decimal('25'):
-        print("\nWarning: Interest rate is unusually high. Please verify this is correct.")
+    except (ValueError, ArithmeticError) as e:
+        raise CalculationError(f"Payment calculation failed: {str(e)}")
+
+def create_amortization_schedule(
+    loan: LoanDetails
+) -> Tuple[List[AmortizationEntry], Decimal]:
+    """
+    Create amortization schedule for the loan.
     
-    if months <= 0:
-        raise ValueError("Loan term must be greater than zero months.")
-    if months > 600:
-        raise ValueError("Loan term cannot exceed 600 months (50 years).")
-    if months > 420:
-        print("\nWarning: Loan term exceeds 35 years. Please verify this is correct.")
+    Args:
+        loan (LoanDetails): Loan details container
+    
+    Returns:
+        Tuple[List[AmortizationEntry], Decimal]: Schedule and total interest
+    
+    Raises:
+        CalculationError: If schedule creation fails
+    """
+    try:
+        monthly_payment = calculate_monthly_payment(
+            loan.principal,
+            loan.annual_rate,
+            loan.months
+        )
+        monthly_rate = calculate_monthly_rate(loan.annual_rate)
+        
+        schedule: List[AmortizationEntry] = []
+        balance = loan.principal
+        total_interest = Decimal('0')
+        current_date = loan.start_date
+        
+        for month in range(1, loan.months + 1):
+            # Calculate interest and principal portions
+            interest_payment = (balance * monthly_rate).quantize(Decimal('0.01'))
+            principal_payment = (monthly_payment - interest_payment).quantize(Decimal('0.01'))
+            
+            # Adjust final payment to handle rounding
+            if month == loan.months:
+                principal_payment = balance
+                monthly_payment = principal_payment + interest_payment
+            
+            # Update running totals
+            total_interest += interest_payment
+            balance -= principal_payment
+            
+            # Calculate LTV (Loan-to-Value) ratio
+            ltv = (balance / loan.principal * 100).quantize(Decimal('0.1'))
+            
+            # Create schedule entry
+            entry: AmortizationEntry = {
+                'Date': current_date.strftime('%B %Y'),
+                'Month': month,
+                'Payment': monthly_payment,
+                'Principal_Payment': principal_payment,
+                'Interest_Payment': interest_payment,
+                'Remaining_Balance': balance,
+                'LTV': ltv
+            }
+            schedule.append(entry)
+            
+            # Move to next month
+            current_date += relativedelta(months=1)
+        
+        return schedule, total_interest.quantize(Decimal('0.01'))
+    
+    except Exception as e:
+        raise CalculationError(f"Schedule creation failed: {str(e)}")
+
+def calculate_total_cost(principal: Decimal, total_interest: Decimal) -> Decimal:
+    """
+    Calculate total cost of the loan.
+    
+    Args:
+        principal (Decimal): Original loan amount
+        total_interest (Decimal): Total interest paid
+    
+    Returns:
+        Decimal: Total cost of the loan
+    """
+    return (principal + total_interest).quantize(Decimal('0.01'))
+
+def calculate_interest_percentage(total_interest: Decimal, total_cost: Decimal) -> Decimal:
+    """
+    Calculate interest as percentage of total cost.
+    
+    Args:
+        total_interest (Decimal): Total interest paid
+        total_cost (Decimal): Total cost of the loan
+    
+    Returns:
+        Decimal: Interest percentage
+    """
+    return (total_interest / total_cost * 100).quantize(Decimal('0.1'))

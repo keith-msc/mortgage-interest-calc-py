@@ -1,25 +1,38 @@
-"""Core calculation and validation functionality."""
+"""Core package initialization."""
 
 from .calculations import (
+    LoanDetails,
+    AmortizationEntry,
     calculate_monthly_payment,
     create_amortization_schedule,
-    validate_loan_inputs
+    calculate_total_cost,
+    calculate_interest_percentage,
+    CalculationError
 )
+
 from .validation import (
-    get_month_number,
+    validate_loan_inputs,
     validate_month_year,
-    format_currency,
     validate_currency_choice,
-    validate_file_name
+    validate_file_name,
+    format_currency,
+    format_percentage,
+    LoanValidationError
 )
 
 __all__ = [
+    'LoanDetails',
+    'AmortizationEntry',
     'calculate_monthly_payment',
     'create_amortization_schedule',
+    'calculate_total_cost',
+    'calculate_interest_percentage',
+    'CalculationError',
     'validate_loan_inputs',
-    'get_month_number',
     'validate_month_year',
-    'format_currency',
     'validate_currency_choice',
-    'validate_file_name'
+    'validate_file_name',
+    'format_currency',
+    'format_percentage',
+    'LoanValidationError'
 ]

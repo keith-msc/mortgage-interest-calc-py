@@ -1,166 +1,245 @@
-"""Visualization functions for mortgage amortization data."""
+"""Data visualization functions for mortgage calculator."""
 
+from dataclasses import dataclass
 from decimal import Decimal
-from typing import List, Dict
-import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
+from pathlib import Path
+from typing import List, Dict, Optional
 
-def format_axis_labels(x: float, p: int) -> str:
-    """Format y-axis labels with currency symbol and thousands separator."""
-    from ..core.validation import format_currency
-    return format_currency(Decimal(str(x)), '')  # Currency symbol added in plot title
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from datetime import datetime
+from dateutil.parser import parse
+
+class PlottingError(Exception):
+    """Custom exception for plotting errors."""
+    pass
+
+@dataclass
+class PlotConfig:
+    """Configuration for plot styling."""
+    theme: str = "light"  # "light" or "dark"
+    show_annotations: bool = True
+    dpi: int = 100
+    figsize: tuple[int, int] = (12, 8)  # Increased height
+    annotation_fontsize: int = 8
+    title_fontsize: int = 14
+    label_fontsize: int = 12
+    title_pad: int = 20  # Added padding for title
+    top_margin: float = 0.92  # Controls space at top
+    bottom_margin: float = 0.12  # Controls space at bottom
+    
+    def apply_theme(self) -> None:
+        """Apply theme settings to matplotlib."""
+        if self.theme == "dark":
+            plt.style.use('dark_background')
+            self.colors = {
+                'principal': '#00ff00',  # Bright green
+                'interest': '#ff4444',   # Bright red
+                'balance': '#00ffff',    # Cyan
+                'grid': '#333333',       # Dark gray
+                'text': '#ffffff'        # White
+            }
+        else:
+            plt.style.use('default')
+            self.colors = {
+                'principal': '#2ecc71',  # Green
+                'interest': '#e74c3c',   # Red
+                'balance': '#3498db',    # Blue
+                'grid': '#ecf0f1',       # Light gray
+                'text': '#2c3e50'        # Dark gray
+            }
 
 def plot_amortization_schedule(
     schedule: List[Dict],
     currency_symbol: str,
     principal: Decimal,
-    save_path: str = None
+    save_path: str,
+    config: Optional[PlotConfig] = None
 ) -> None:
     """
-    Plot the amortization schedule showing principal and interest payments over time.
+    Create payment breakdown visualization.
     
     Args:
-        schedule (List[Dict]): The amortization schedule
+        schedule (List[Dict]): Amortization schedule
         currency_symbol (str): Currency symbol for formatting
         principal (Decimal): Original loan amount
-        save_path (str, optional): Path to save the plot. If None, only displays.
+        save_path (str): Path to save the plot
+        config (Optional[PlotConfig]): Plot configuration
     
     Raises:
-        ValueError: If schedule is empty
-        KeyError: If schedule entries are missing required fields
+        PlottingError: If plotting fails
     """
     try:
-        if not schedule:
-            raise ValueError("Cannot create plot: schedule is empty")
-
-        # Validate required fields
-        required_fields = ['Month', 'Principal Payment', 'Interest Payment']
-        if not all(field in schedule[0] for field in required_fields):
-            raise KeyError("Schedule entries missing required fields")
-
-        # Convert months to years for x-axis
-        years = [float(payment['Month'])/12 for payment in schedule]
-        principal_payments = [float(payment['Principal Payment']) for payment in schedule]
-        interest_payments = [float(payment['Interest Payment']) for payment in schedule]
+        # Use default config if none provided
+        if config is None:
+            config = PlotConfig()
         
-        # Calculate total cost for title
-        total_cost = sum(principal_payments) + sum(interest_payments)
+        # Apply theme
+        config.apply_theme()
         
-        # Create figure and axis
-        fig, ax = plt.subplots(figsize=(12, 6), constrained_layout=True)
+        # Create figure with adjusted layout
+        fig = plt.figure(figsize=config.figsize, dpi=config.dpi)
+        plt.subplots_adjust(
+            top=config.top_margin,
+            bottom=config.bottom_margin
+        )
         
-        # Plot payment components
-        ax.plot(years, principal_payments, label='Principal Payment (Monthly)',
-                color='green', linewidth=2)
-        ax.plot(years, interest_payments, label='Interest Payment (Monthly)',
-                color='red', linewidth=2)
+        # Extract data
+        months = [entry['Month'] for entry in schedule]
+        principal_payments = [float(entry['Principal_Payment']) for entry in schedule]
+        interest_payments = [float(entry['Interest_Payment']) for entry in schedule]
         
-        # Set title with loan summary
-        title = (f'Amortization Schedule\n'
-                f'Total Cost: {currency_symbol}{total_cost:,.2f}')
-        ax.set_title(title, pad=20)
+        # Create stacked bar chart
+        plt.bar(months, principal_payments, label='Principal',
+                color=config.colors['principal'])
+        plt.bar(months, interest_payments, bottom=principal_payments,
+                label='Interest', color=config.colors['interest'])
         
-        # Set labels and formatting
-        ax.set_xlabel('Years')
-        ax.set_ylabel('Monthly Payment Amount')
-        ax.yaxis.set_major_formatter(FuncFormatter(format_axis_labels))
+        # Customize plot
+        plt.title('Monthly Payment Breakdown\nPrincipal vs Interest',
+                 fontsize=config.title_fontsize,
+                 color=config.colors['text'],
+                 pad=config.title_pad)
+        plt.xlabel('Month', fontsize=config.label_fontsize,
+                  color=config.colors['text'])
+        plt.ylabel(f'Payment Amount ({currency_symbol})',
+                  fontsize=config.label_fontsize, color=config.colors['text'])
         
-        # Set x-axis ticks to show whole years
-        max_years = max(years)
-        ax.set_xticks(range(0, int(max_years) + 1, 5))
+        # Add grid
+        plt.grid(True, alpha=0.3, color=config.colors['grid'])
         
-        # Enhance grid and legend
-        ax.grid(True, linestyle='--', alpha=0.7)
-        ax.legend(loc='center right', bbox_to_anchor=(1.15, 0.5))
+        # Customize legend
+        plt.legend(loc='upper right')
         
-        if save_path:
-            plt.savefig(save_path, bbox_inches='tight')
-            print(f"Payment breakdown graph saved as '{save_path}'")
+        # Add annotations if enabled
+        if config.show_annotations:
+            # Add total loan amount with adjusted spacing
+            plt.annotate(
+                f'Total Loan: {currency_symbol}{float(principal):,.2f}',
+                xy=(0.02, 0.95), xycoords='axes fraction',  # Moved down slightly
+                fontsize=config.annotation_fontsize + 2,  # Slightly larger font
+                color=config.colors['text'],
+                bbox=dict(  # Added background box
+                    facecolor='white' if config.theme == "light" else 'black',
+                    alpha=0.8,
+                    edgecolor='none',
+                    pad=3
+                ),
+                annotation_clip=False  # Ensures annotation isn't clipped
+            )
+            
+            # Add key milestones
+            for year in [1, 5, 10, 15, 20, 25, 30]:
+                month = year * 12
+                if month <= len(schedule):
+                    plt.axvline(x=month, color='gray', linestyle='--', alpha=0.3)
+                    plt.annotate(
+                        f'{year}y',
+                        xy=(month, plt.ylim()[1]),
+                        xytext=(0, 10), textcoords='offset points',
+                        ha='center', fontsize=config.annotation_fontsize,
+                        color=config.colors['text']
+                    )
         
-        plt.show()
+        # Save plot
+        plt.tight_layout()
+        plt.savefig(save_path, bbox_inches='tight')
         plt.close()
-
+        
     except Exception as e:
-        print(f"An error occurred while creating the payment breakdown plot: {e}")
-        raise
+        raise PlottingError(f"Failed to create payment breakdown plot: {str(e)}")
 
 def plot_balance_over_time(
     schedule: List[Dict],
     currency_symbol: str,
     principal: Decimal,
-    save_path: str = None
+    save_path: str,
+    config: Optional[PlotConfig] = None
 ) -> None:
     """
-    Plot the remaining balance over time with milestone markers.
+    Create remaining balance visualization.
     
     Args:
-        schedule (List[Dict]): The amortization schedule
+        schedule (List[Dict]): Amortization schedule
         currency_symbol (str): Currency symbol for formatting
         principal (Decimal): Original loan amount
-        save_path (str, optional): Path to save the plot. If None, only displays.
+        save_path (str): Path to save the plot
+        config (Optional[PlotConfig]): Plot configuration
     
     Raises:
-        ValueError: If schedule is empty
-        KeyError: If schedule entries are missing required fields
+        PlottingError: If plotting fails
     """
     try:
-        if not schedule:
-            raise ValueError("Cannot create plot: schedule is empty")
-
-        # Validate required fields
-        if 'Remaining Balance' not in schedule[0]:
-            raise KeyError("Schedule entries missing 'Remaining Balance' field")
-
-        # Convert months to years for x-axis
-        years = [float(payment['Month'])/12 for payment in schedule]
-        balances = [float(payment['Remaining Balance']) for payment in schedule]
+        # Use default config if none provided
+        if config is None:
+            config = PlotConfig()
         
-        # Create figure and axis
-        fig, ax = plt.subplots(figsize=(12, 6))
+        # Apply theme
+        config.apply_theme()
         
-        # Plot balance
-        ax.plot(years, balances, label='Remaining Balance',
-                color='blue', linewidth=2)
+        # Create figure with adjusted layout
+        fig = plt.figure(figsize=config.figsize, dpi=config.dpi)
+        plt.subplots_adjust(
+            top=config.top_margin,
+            bottom=config.bottom_margin
+        )
         
-        # Set title with initial balance
-        title = (f'Remaining Balance Over Time\n'
-                f'Initial Balance: {currency_symbol}{float(principal):,.2f}')
-        ax.set_title(title, pad=20)
+        # Extract data
+        dates = [parse(entry['Date']) for entry in schedule]
+        balances = [float(entry['Remaining_Balance']) for entry in schedule]
         
-        # Set labels and formatting
-        ax.set_xlabel('Years')
-        ax.set_ylabel('Balance')
-        ax.yaxis.set_major_formatter(FuncFormatter(format_axis_labels))
+        # Create line plot
+        plt.plot(dates, balances, label='Remaining Balance',
+                color=config.colors['balance'], linewidth=2)
         
-        # Set x-axis ticks to show whole years
-        max_years = max(years)
-        ax.set_xticks(range(0, int(max_years) + 1, 5))
+        # Customize plot
+        plt.title('Remaining Loan Balance Over Time',
+                 fontsize=config.title_fontsize,
+                 color=config.colors['text'],
+                 pad=config.title_pad)
+        plt.xlabel('Date', fontsize=config.label_fontsize,
+                  color=config.colors['text'])
+        plt.ylabel(f'Balance ({currency_symbol})',
+                  fontsize=config.label_fontsize, color=config.colors['text'])
         
-        # Enhance grid and legend
-        ax.grid(True, linestyle='--', alpha=0.7)
-        ax.legend(loc='upper right')
+        # Format x-axis dates
+        plt.gca().xaxis.set_major_locator(mdates.YearLocator(2))
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
         
-        # Add milestone labels (25%, 50%, 75% paid off)
-        for percentage in [0.75, 0.5, 0.25]:
-            target_balance = float(principal) * percentage
-            idx = next((i for i, b in enumerate(balances) if b <= target_balance), None)
-            if idx is not None:
-                ax.annotate(
-                    f'{int((1-percentage)*100)}% Paid',
-                    xy=(years[idx], balances[idx]),
-                    xytext=(10, 10),
-                    textcoords='offset points',
-                    ha='left',
-                    va='bottom'
-                )
+        # Add grid
+        plt.grid(True, alpha=0.3, color=config.colors['grid'])
         
-        if save_path:
-            plt.savefig(save_path, bbox_inches='tight')
-            print(f"Balance over time graph saved as '{save_path}'")
+        # Format y-axis with currency
+        plt.gca().yaxis.set_major_formatter(
+            plt.FuncFormatter(lambda x, p: f'{currency_symbol}{x:,.0f}')
+        )
         
-        plt.show()
+        # Add annotations if enabled
+        if config.show_annotations:
+            # Add milestone markers
+            milestones = [75, 50, 25]  # Percentage milestones
+            for milestone in milestones:
+                for i, ltv in enumerate(entry['LTV'] for entry in schedule):
+                    if float(ltv) <= milestone:
+                        plt.plot(dates[i], balances[i], 'o',
+                               color=config.colors['text'])
+                        plt.annotate(
+                            f'{milestone}% Paid',
+                            xy=(dates[i], balances[i]),
+                            xytext=(10, 10),
+                            textcoords='offset points',
+                            fontsize=config.annotation_fontsize,
+                            color=config.colors['text']
+                        )
+                        break
+        
+        # Rotate x-axis labels
+        plt.xticks(rotation=45)
+        
+        # Save plot
+        plt.tight_layout()
+        plt.savefig(save_path, bbox_inches='tight')
         plt.close()
-
+        
     except Exception as e:
-        print(f"An error occurred while creating the balance plot: {e}")
-        raise
+        raise PlottingError(f"Failed to create balance plot: {str(e)}")
