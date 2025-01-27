@@ -36,6 +36,7 @@ python run_calculator.py
 
 ## Features
 
+- **Flexible Deposit Input**: Enter deposit as fixed amount or percentage of property value
 - **Calculate Monthly Payments**: Get precise payment calculations using industry-standard formulas
 - **Payment Schedule**: See a detailed breakdown of every payment over your loan term
 - **Interest Analysis**: Understand how much interest you'll pay over time
@@ -56,7 +57,11 @@ python run_calculator.py
    ```
 
 2. Enter your loan details:
-   - Loan amount (e.g., 250000)
+   - Property value (e.g., 250000)
+   - Deposit (optional):
+     * Enter as fixed amount (e.g., 50000)
+     * Enter as percentage (e.g., 20 for 20%)
+     * Press Enter to skip deposit
    - Interest rate (e.g., 3.5)
    - Loan term in years
    - Start date
@@ -73,8 +78,8 @@ python run_calculator.py
 The calculator will generate:
 1. A CSV file with your complete payment schedule
 2. Two visualization graphs:
-   - `amortization_schedule_payments.png`
-   - `amortization_schedule_balance.png`
+   - `payment_breakdown.png`: Shows principal vs interest payments
+   - `balance_progress.png`: Shows remaining balance over time
 
 ## Requirements
 
@@ -144,7 +149,9 @@ pylint mortgage_calculator/
 
 | Parameter | Description | Example | Validation |
 |-----------|-------------|---------|------------|
-| Loan Amount | Total mortgage amount | 250000 | > 0, < 1B |
+| Property Value | Total property value | 250000 | > 0, < 1B |
+| Deposit Amount | Initial payment (optional) | 50000 or 20% | < Property Value |
+| Loan Amount | Property Value - Deposit | 200000 | > 0, < Property Value |
 | Interest Rate | Annual rate (%) | 3.5 | 0-25% |
 | Loan Term | Years + Months | 30y 0m | ≤ 50 years |
 | Start Date | Loan start date | Jan 2023 | Valid date |
