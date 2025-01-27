@@ -55,7 +55,8 @@ def process_loan_calculation(user_input: UserInput) -> Optional[tuple[LoanDetail
             principal=user_input.principal,
             annual_rate=user_input.annual_rate,
             months=user_input.total_months,
-            start_date=user_input.start_date
+            start_date=user_input.start_date,
+            deposit=user_input.deposit
         )
         
         # Calculate monthly payment
@@ -75,7 +76,8 @@ def process_loan_calculation(user_input: UserInput) -> Optional[tuple[LoanDetail
             months=loan.months,
             monthly_payment=monthly_payment,
             total_interest=total_interest,
-            currency_symbol=user_input.currency_symbol
+            currency_symbol=user_input.currency_symbol,
+            deposit=user_input.deposit
         )
         
         return loan, loan_summary, schedule

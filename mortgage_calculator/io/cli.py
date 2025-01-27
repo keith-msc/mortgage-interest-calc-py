@@ -27,7 +27,20 @@ class UserInput:
     start_date: datetime
     currency_symbol: str
     export_filename: str
+    deposit: Optional[Decimal] = None
     show_graphs: bool = True
+
+    @property
+    def property_value(self) -> Decimal:
+        """Calculate total property value."""
+        return self.principal + (self.deposit or Decimal('0'))
+
+    @property
+    def deposit_percentage(self) -> Optional[Decimal]:
+        """Calculate deposit as percentage of property value."""
+        if self.deposit is None or self.deposit == 0:
+            return None
+        return (self.deposit / self.property_value * 100).quantize(Decimal('0.1'))
 
 def print_colored(message: str, color: str = "white") -> None:
     """
@@ -75,7 +88,11 @@ def print_completion_message() -> None:
     print_success("\nCalculation completed successfully!")
     print("Check the output directory for detailed results.")
 
-def _get_decimal_input(prompt: str, min_value: float = 0) -> Decimal:
+def _get_decimal_input(
+    prompt: str,
+    min_value: float = 0,
+    optional: bool = False
+) -> Optional[Decimal]:
     """
     Get and validate decimal input from user.
     
@@ -93,6 +110,8 @@ def _get_decimal_input(prompt: str, min_value: float = 0) -> Decimal:
         try:
             value = input(prompt).strip().replace(',', '')
             if not value:
+                if optional:
+                    return None
                 raise CLIError("Input cannot be empty")
             
             decimal_value = Decimal(value)
@@ -188,11 +207,52 @@ def collect_user_input() -> UserInput:
     try:
         print_welcome_message()
         
-        # Get loan amount
-        principal = _get_decimal_input(
-            "Enter loan amount (e.g., 250000): ",
+        # Get property value and deposit
+        property_value = _get_decimal_input(
+            "Enter property value (e.g., 250000): ",
             min_value=0
         )
+        
+        # Get optional deposit
+        deposit_type = input(
+            "Choose to enter deposit as (1) amount or (2) percentage (press Enter for no deposit): "
+        ).strip()
+        
+        deposit = None
+        if deposit_type:
+            if deposit_type not in ['1', '2']:
+                raise CLIError("Please choose 1 for amount or 2 for percentage")
+            
+            if deposit_type == '1':
+                deposit = _get_decimal_input(
+                    "Enter deposit amount: ",
+                    min_value=0
+                )
+                if deposit >= property_value:
+                    raise CLIError("Deposit cannot be greater than or equal to property value")
+                
+            else:  # deposit_type == '2'
+                deposit_percentage = _get_decimal_input(
+                    "Enter deposit percentage (e.g., 20 for 20%): ",
+                    min_value=0
+                )
+                if deposit_percentage >= 100:
+                    raise CLIError("Deposit percentage cannot be 100% or greater")
+                
+                deposit = (property_value * deposit_percentage / 100).quantize(Decimal('0.01'))
+            
+            principal = property_value - deposit
+            percentage = (deposit / property_value * 100).quantize(Decimal('0.1'))
+            print_colored(
+                f"Deposit: {deposit} ({percentage}% of property value)",
+                "cyan"
+            )
+            print_colored(
+                f"Loan amount after deposit: {principal}",
+                "cyan"
+            )
+        else:
+            principal = property_value
         
         # Get interest rate
         annual_rate = _get_decimal_input(
@@ -244,6 +304,7 @@ def collect_user_input() -> UserInput:
             start_date=start_date,
             currency_symbol=currency_symbol,
             export_filename=export_filename,
+            deposit=deposit,
             show_graphs=show_graphs
         )
         

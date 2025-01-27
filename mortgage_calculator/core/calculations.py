@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime
-from typing import Dict, List, Tuple, TypedDict
+from typing import Dict, List, Optional, Tuple, TypedDict
 from functools import lru_cache
 from dateutil.relativedelta import relativedelta
 
@@ -23,6 +23,7 @@ class LoanDetails:
     annual_rate: Decimal
     months: int
     start_date: datetime
+    deposit: Optional[Decimal] = None
 
     def __post_init__(self) -> None:
         """Validate loan details after initialization."""
@@ -34,6 +35,23 @@ class LoanDetails:
             raise CalculationError("Number of months must be greater than zero")
         if self.months > 600:  # 50 years
             raise CalculationError("Loan term cannot exceed 50 years")
+        if self.deposit is not None:
+            if self.deposit < 0:
+                raise CalculationError("Deposit cannot be negative")
+            if self.deposit >= self.property_value:
+                raise CalculationError("Deposit cannot be greater than or equal to property value")
+
+    @property
+    def property_value(self) -> Decimal:
+        """Calculate total property value."""
+        return self.principal + (self.deposit or Decimal('0'))
+
+    @property
+    def deposit_percentage(self) -> Optional[Decimal]:
+        """Calculate deposit as percentage of property value."""
+        if self.deposit is None or self.deposit == 0:
+            return None
+        return (self.deposit / self.property_value * 100).quantize(Decimal('0.1'))
 
 class AmortizationEntry(TypedDict):
     """Type definition for amortization schedule entry."""
@@ -146,8 +164,8 @@ def create_amortization_schedule(
             total_interest += interest_payment
             balance -= principal_payment
             
-            # Calculate LTV (Loan-to-Value) ratio
-            ltv = (balance / loan.principal * 100).quantize(Decimal('0.1'))
+            # Calculate LTV (Loan-to-Value) ratio considering deposit
+            ltv = (balance / loan.property_value * 100).quantize(Decimal('0.1'))
             
             # Create schedule entry
             entry: AmortizationEntry = {
