@@ -24,11 +24,11 @@ git clone https://github.com/keith-msc/mortgage-interest-calc-py.git
 cd mortgage-interest-calc-py
 
 # Set up and activate virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 
 # Run the calculator
 python run_calculator.py
@@ -117,30 +117,30 @@ git clone https://github.com/keith-msc/mortgage-interest-calc-py.git
 cd mortgage-interest-calc-py
 
 # Set up virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 
 # Install in development mode
-pip install -e .
+uv pip install -e .
 ```
 
 ## Testing
 
 ```bash
 # Run tests with coverage
-pytest --cov=mortgage_calculator tests/
+uv run pytest --cov=mortgage_calculator tests/
 
 # Format code
-black .
+uv run black .
 
 # Type checking
-mypy .
+uv run mypy .
 
 # Lint code
-pylint mortgage_calculator/
+uv run pylint mortgage_calculator/
 ```
 
 ## Technical Details
