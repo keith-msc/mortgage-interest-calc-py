@@ -1,20 +1,22 @@
 # Mortgage Interest Calculator (Amortization)
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Python 3.x](https://img.shields.io/badge/python-3.x-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 
-A user-friendly mortgage calculator that helps you understand your loan payments, interest costs, and payment schedule. Get clear visualizations and detailed breakdowns of your mortgage payments.
+A user-friendly mortgage calculator that helps you understand your loan payments, interest costs, and payment schedule. Provides clear visualizations and detailed breakdowns of your mortgage payments.
 
 ## Prerequisites
 
-1. Python Installation
-   - Download and install Python 3.6 or higher from [python.org](https://python.org)
-   - During installation on Windows, check "Add Python to PATH"
-   - Verify installation: `python --version`
+1. Python
+   - Install Python 3.10 or higher from https://python.org
+   - On Windows, check “Add Python to PATH” during installation
+   - Verify installation:
+     - macOS/Linux: `python3 --version`
+     - Windows: `py --version`
 
-2. Pip Installation (if needed)
-   - Pip should come with Python, verify with: `pip --version`
-   - If missing, install with: `python -m ensurepip --upgrade`
+2. Package manager
+   - This project uses uv (fast Python package manager). Install: https://docs.astral.sh/uv/
+   - Verify: `uv --version`
 
 ## Quick Start
 
@@ -23,9 +25,12 @@ A user-friendly mortgage calculator that helps you understand your loan payments
 git clone https://github.com/keith-msc/mortgage-interest-calc-py.git
 cd mortgage-interest-calc-py
 
-# Set up and activate virtual environment
+# Create and activate virtual environment
 uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+# macOS/Linux
+source .venv/bin/activate
+# Windows (PowerShell)
+.venv\Scripts\Activate.ps1
 
 # Install dependencies
 uv pip install -r requirements.txt
@@ -34,20 +39,20 @@ uv pip install -r requirements.txt
 python run_calculator.py
 ```
 
+Notes:
+- If uv is not available, you can use the built-in venv and pip: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`.
+
 ## Features
 
-- **Flexible Deposit Input**: Enter deposit as fixed amount or percentage of property value
-- **Calculate Monthly Payments**: Get precise payment calculations using industry-standard formulas
-- **Payment Schedule**: See a detailed breakdown of every payment over your loan term
-- **Interest Analysis**: Understand how much interest you'll pay over time
-- **Visual Insights**: View graphs showing:
-  - Payment breakdown (Principal vs Interest)
-  - Remaining balance over time
-  - Key milestones (25%, 50%, 75% paid)
-- **Export Options**:
-  - Save payment schedule to CSV
-  - Download visualization graphs
-- **Multi-Currency Support**: Works with €, $, and £
+- Flexible deposit input: amount or percentage
+- Precise monthly payment calculation (handles 0% interest correctly)
+- Full amortization schedule with consistent rounding and last-payment correction
+- Interest analysis: total interest and percentage of total cost
+- Visual insights (optional): payment breakdown and remaining balance plots
+- CSV/TXT export with summary first and normalized schedule keys
+- Multi-currency support: €, $, £
+- Robust input validation and helpful CLI prompts
+- Backward-compatibility shims for legacy tests and APIs
 
 ## Usage
 
@@ -56,35 +61,41 @@ python run_calculator.py
    python run_calculator.py
    ```
 
-2. Enter your loan details:
+2. Enter your loan details when prompted:
    - Property value (e.g., 250000)
    - Deposit (optional):
-     * Enter as fixed amount (e.g., 50000)
-     * Enter as percentage (e.g., 20 for 20%)
-     * Press Enter to skip deposit
+     - Fixed amount (e.g., 50000)
+     - Percentage (e.g., 20 for 20%)
+     - Press Enter to skip deposit
    - Interest rate (e.g., 3.5)
-   - Loan term in years
-   - Start date
-   - Currency preference
+   - Loan term in years and optional extra months (0-11)
+   - Start month and year (e.g., Feb 2024)
+   - Currency preference (euro/dollar/sterling)
+   - Export filename (optional; press Enter to use default: amortization_schedule.csv)
+   - Visualization preference (y/n; if matplotlib is not installed, plots are skipped)
 
-3. Get your results:
+3. Results include:
    - Monthly payment amount
-   - Total interest cost
-   - Complete payment schedule
-   - Visual payment breakdown
-
-## Example Output
-
-The calculator will generate:
-1. A CSV file with your complete payment schedule
-2. Two visualization graphs:
-   - `payment_breakdown.png`: Shows principal vs interest payments
-   - `balance_progress.png`: Shows remaining balance over time
+   - Total interest cost and total cost
+   - Complete amortization schedule (first 12 months printed in CLI)
+   - Exported CSV/TXT with summary and full schedule
+   - Visualization graphs if enabled:
+     - `mortgage_output/payment_breakdown.png`
+     - `mortgage_output/balance_progress.png`
 
 ## Requirements
 
-- Python 3.6 or higher
-- 50MB free disk space
+- Python 3.10 or higher
+- uv (recommended) or standard pip/venv
+- matplotlib (optional, for graphs)
+- python-dateutil (used internally for dates; installed via requirements)
+
+## Example Output
+
+Example inputs and excerpted outputs are shown in the issue tracker and match standard amortization math:
+- Monthly payment: €1,626.60 for L=€455,000, r=2.5% APR, n=35 years
+- Month 1 interest ≈ €947.92; principal ≈ €678.68; balance ≈ €454,321.32
+- LTV decreases monotonically from ≈95.6% in the first month
 
 <details>
 <summary>Developer Documentation</summary>
@@ -93,20 +104,20 @@ The calculator will generate:
 
 ```
 mortgage-interest-calc-py/
-├── mortgage_calculator/        # Main package
-│   ├── core/                  # Core functionality
-│   │   ├── calculations.py    # Financial calculations
-│   │   └── validation.py      # Input validation
-│   ├── io/                    # Input/Output handling
-│   │   ├── cli.py            # Command line interface
-│   │   └── export.py         # File export operations
-│   ├── visualization/         # Data visualization
-│   │   └── plotting.py       # Graph generation
-│   ├── __init__.py           # Package initialization
-│   └── main.py               # Main application logic
-├── tests/                     # Test directory
-├── setup.py                   # Package configuration
-└── requirements.txt          # Dependencies
+├── mortgage_calculator/
+│   ├── core/
+│   │   ├── calculations.py
+│   │   └── validation.py
+│   ├── io/
+│   │   ├── cli.py
+│   │   └── export.py
+│   ├── visualization/
+│   │   └── plotting.py
+│   ├── __init__.py
+│   └── main.py
+├── tests/
+├── setup.py
+└── requirements.txt
 ```
 
 ## Development Setup
@@ -116,18 +127,18 @@ mortgage-interest-calc-py/
 git clone https://github.com/keith-msc/mortgage-interest-calc-py.git
 cd mortgage-interest-calc-py
 
-# Set up virtual environment
+# Create venv
 uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
 
 # Install dependencies
 uv pip install -r requirements.txt
 
-# Install in development mode
+# Editable install (optional)
 uv pip install -e .
 ```
 
-## Testing
+## Testing and Tooling
 
 ```bash
 # Run tests with coverage
@@ -139,51 +150,47 @@ uv run black .
 # Type checking
 uv run mypy .
 
-# Lint code
+# Lint
 uv run pylint mortgage_calculator/
 ```
 
-## Technical Details
+### Technical Notes
 
-### Input Parameters
-
-| Parameter | Description | Example | Validation |
-|-----------|-------------|---------|------------|
-| Property Value | Total property value | 250000 | > 0, < 1B |
-| Deposit Amount | Initial payment (optional) | 50000 or 20% | < Property Value |
-| Loan Amount | Property Value - Deposit | 200000 | > 0, < Property Value |
-| Interest Rate | Annual rate (%) | 3.5 | 0-25% |
-| Loan Term | Years + Months | 30y 0m | ≤ 50 years |
-| Start Date | Loan start date | Jan 2023 | Valid date |
-| Currency | Payment currency | euro/dollar/sterling | Valid choice |
-
-### Development Tools
-- **pytest**: Testing framework
-- **black**: Code formatting
-- **mypy**: Static type checking
-- **pylint**: Code linting
-- **hypothesis**: Property-based testing
+- Input validation:
+  - File names validated; default provided when pressing Enter
+  - Month parsing supports full/abbrev names; consistent get_month_number
+  - Currency normalization: euro/eur → €, dollar/usd → $, sterling/gbp/pound → £
+- Amortization:
+  - Handles 0% interest case via exact division
+  - Rounds to 2 decimals; corrects final payment to zero out balance
+- CLI/UX:
+  - Uses defaults where appropriate
+  - Visualization lazy-imported; skipped if matplotlib not present
+- Exports:
+  - Summary rows precede header
+  - Schedule keys normalized (legacy and canonical supported)
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+Contributions are welcome! Please open an issue for major changes and submit a PR with tests where applicable.
 
 ### Development Process
+
 1. Fork the repository
-2. Create your feature branch
+2. Create a feature branch
 3. Install development dependencies
-4. Make your changes
-5. Run tests and linting
-6. Submit PR
+4. Make changes with tests
+5. Run tests and linters
+6. Open a PR
 
 </details>
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GNU General Public License v3.0 — see the [LICENSE](LICENSE) file for details.
 
 ## Support
 
-Need help? Check out:
-1. [GitHub Issues](https://github.com/keith-msc/mortgage-interest-calc-py/issues)
-2. Open a new issue if needed
+Need help?
+1. Open or search [GitHub Issues](https://github.com/keith-msc/mortgage-interest-calc-py/issues)
+2. Create a new issue if needed

@@ -24,12 +24,18 @@ from .io.export import (
     LoanSummary,
     ExportError
 )
-from .visualization.plotting import (
-    plot_amortization_schedule,
-    plot_balance_over_time,
-    PlotConfig,
-    PlottingError
-)
+# Lazy plotting import helpers to make visualization optional at runtime
+def _maybe_import_plots():
+    try:
+        from .visualization.plotting import (
+            plot_amortization_schedule,
+            plot_balance_over_time,
+            PlotConfig,
+            PlottingError
+        )
+        return plot_amortization_schedule, plot_balance_over_time, PlotConfig, PlottingError
+    except Exception:
+        return None, None, None, None
 
 def create_output_directory() -> Path:
     """Create output directory for generated files."""
@@ -130,15 +136,20 @@ def generate_visualizations(
     output_dir: Path,
     dark_mode: bool = False
 ) -> None:
-    """Generate visualization plots."""
+    """Generate visualization plots (optional if matplotlib is available)."""
+    plot_amortization_schedule, plot_balance_over_time, PlotConfig, PlottingError = _maybe_import_plots()
+    if not all([plot_amortization_schedule, plot_balance_over_time, PlotConfig]):
+        print_progress("Visualization skipped (matplotlib not available)")
+        return
+
     try:
         print_progress("Generating visualizations")
-        
+
         plot_config = PlotConfig(
             theme="dark" if dark_mode else "light",
             show_annotations=True
         )
-        
+
         # Payment breakdown plot
         payments_plot = output_dir / "payment_breakdown.png"
         plot_amortization_schedule(
@@ -149,7 +160,7 @@ def generate_visualizations(
             config=plot_config
         )
         print_colored(f"Payment breakdown plot saved as: {payments_plot}", "green")
-        
+
         # Balance plot
         balance_plot = output_dir / "balance_progress.png"
         plot_balance_over_time(
@@ -160,8 +171,9 @@ def generate_visualizations(
             config=plot_config
         )
         print_colored(f"Balance progress plot saved as: {balance_plot}", "green")
-        
-    except PlottingError as e:
+
+    except Exception as e:
+        # If PlottingError class not available due to lazy import variance, catch generically
         print_error(f"Visualization failed: {str(e)}")
 
 def main() -> None:
@@ -181,7 +193,7 @@ def main() -> None:
         loan, loan_summary, schedule = result
         
         # Print initial results
-        print_loan_summary(loan_summary)
+        print_loan_summary(loan_summary=loan_summary)
         print_amortization_schedule(schedule, loan_summary, max_entries=12)
         
         # Export results

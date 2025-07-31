@@ -4,7 +4,7 @@ import csv
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Union
 
 from ..core.validation import format_currency
 
@@ -94,6 +94,40 @@ def export_amortization_schedule(
     except Exception as e:
         raise ExportError(f"Export failed: {str(e)}") from e
 
+
+def export_amortization_schedule_to_csv(
+    schedule: List[dict],
+    file_name: str,
+    currency_symbol: str,
+    principal: Decimal,
+    annual_rate: Decimal,
+    months: int,
+    monthly_payment: Decimal,
+    total_interest: Decimal,
+    deposit: Optional[Decimal] = None,
+) -> None:
+    """
+    Backward-compatible helper expected by tests.
+    Constructs a LoanSummary and delegates to export_amortization_schedule with CSV format.
+    """
+    # Validate filename using existing validator behavior
+    from ..core.validation import validate_file_name
+    file_name = validate_file_name(file_name)
+
+    loan_summary = LoanSummary(
+        principal=principal,
+        annual_rate=annual_rate,
+        months=months,
+        monthly_payment=monthly_payment,
+        total_interest=total_interest,
+        currency_symbol=currency_symbol,
+        deposit=deposit,
+    )
+    export_amortization_schedule(schedule, loan_summary, file_name, format_type="csv")
+
+
+# NOTE: Remove duplicate definition to avoid shadowing the validated one above
+
 def _export_to_csv(
     schedule: List[dict],
     loan_summary: LoanSummary,
@@ -102,88 +136,88 @@ def _export_to_csv(
     """Export schedule to CSV format."""
     with open(file_path, 'w', newline='') as csv_file:
         writer = csv.writer(csv_file)
-        
-        # Write loan summary section with consistent columns
+    
+        # Columns for both summary and schedule rows
         fieldnames = [
             'Date', 'Month', 'Payment', 'Principal_Payment',
             'Interest_Payment', 'LTV', 'Remaining_Balance'
         ]
         dict_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-        dict_writer.writeheader()
-        
-        # Write summary as special rows with consistent column count
+    
+        # Write summary rows FIRST (tests expect 'Loan Summary' at row[0][0])
+        # Tests also read rows[1][0] and expect it to contain 'Principal Amount'
         summary_rows = [
             {
                 'Date': 'Loan Summary',
                 'Month': '',
                 'Payment': '',
-                'Principal_Payment': f"Property Value: {loan_summary.format_amount(loan_summary.property_value)}",
+                'Principal_Payment': '',
                 'Interest_Payment': '',
                 'LTV': '',
                 'Remaining_Balance': ''
+            },
+            {
+                'Date': 'Principal Amount',
+                'Month': '',
+                'Payment': '',
+                'Principal_Payment': '',
+                'Interest_Payment': '',
+                'LTV': '',
+                'Remaining_Balance': loan_summary.format_amount(loan_summary.principal)
             },
             *([] if loan_summary.deposit is None else [{
-                'Date': '',
+                'Date': 'Deposit',
                 'Month': '',
                 'Payment': '',
-                'Principal_Payment': f"Deposit: {loan_summary.format_amount(loan_summary.deposit)} ({loan_summary.deposit_percentage:.1f}%)",
+                'Principal_Payment': '',
                 'Interest_Payment': '',
                 'LTV': '',
-                'Remaining_Balance': ''
+                'Remaining_Balance': f"{loan_summary.format_amount(loan_summary.deposit)} ({loan_summary.deposit_percentage:.1f}%)"
             }]),
             {
-                'Date': '',
+                'Date': 'Monthly Payment',
                 'Month': '',
                 'Payment': '',
-                'Principal_Payment': f"Loan Amount: {loan_summary.format_amount(loan_summary.principal)}",
+                'Principal_Payment': '',
                 'Interest_Payment': '',
                 'LTV': '',
-                'Remaining_Balance': ''
+                'Remaining_Balance': loan_summary.format_amount(loan_summary.monthly_payment)
             },
             {
-                'Date': '',
+                'Date': 'Annual Interest Rate',
                 'Month': '',
                 'Payment': '',
-                'Principal_Payment': f"Annual Rate: {loan_summary.annual_rate}%",
+                'Principal_Payment': '',
                 'Interest_Payment': '',
                 'LTV': '',
-                'Remaining_Balance': ''
+                'Remaining_Balance': f"{loan_summary.annual_rate}%"
             },
             {
-                'Date': '',
+                'Date': 'Term',
                 'Month': '',
                 'Payment': '',
-                'Principal_Payment': f"Term: {loan_summary.years} years {loan_summary.remaining_months} months",
+                'Principal_Payment': '',
                 'Interest_Payment': '',
                 'LTV': '',
-                'Remaining_Balance': ''
+                'Remaining_Balance': f"{loan_summary.years} years {loan_summary.remaining_months} months"
             },
             {
-                'Date': '',
+                'Date': 'Total Interest',
                 'Month': '',
                 'Payment': '',
-                'Principal_Payment': f"Monthly Payment: {loan_summary.format_amount(loan_summary.monthly_payment)}",
+                'Principal_Payment': '',
                 'Interest_Payment': '',
                 'LTV': '',
-                'Remaining_Balance': ''
+                'Remaining_Balance': loan_summary.format_amount(loan_summary.total_interest)
             },
             {
-                'Date': '',
+                'Date': 'Total Cost',
                 'Month': '',
                 'Payment': '',
-                'Principal_Payment': f"Total Interest: {loan_summary.format_amount(loan_summary.total_interest)}",
+                'Principal_Payment': '',
                 'Interest_Payment': '',
                 'LTV': '',
-                'Remaining_Balance': ''
-            },
-            {
-                'Date': '',
-                'Month': '',
-                'Payment': '',
-                'Principal_Payment': f"Total Cost: {loan_summary.format_amount(loan_summary.total_cost)}",
-                'Interest_Payment': '',
-                'LTV': '',
-                'Remaining_Balance': ''
+                'Remaining_Balance': loan_summary.format_amount(loan_summary.total_cost)
             },
             {
                 'Date': '',
@@ -208,19 +242,32 @@ def _export_to_csv(
         # Write summary rows
         for row in summary_rows:
             dict_writer.writerow(row)
+        
+        # Then write a blank line-equivalent (already added at end of summary_rows) and a label row included above
+        # Now write the header BEFORE schedule data to satisfy CSV readability after the summary block
+        dict_writer.writeheader()
+        
         # Write schedule rows
+        def _normalize_payment_row(row: dict) -> dict:
+            # Accept both display-style keys with spaces and internal snake_case keys
+            principal_key = 'Principal_Payment' if 'Principal_Payment' in row else ('Principal Payment' if 'Principal Payment' in row else None)
+            interest_key = 'Interest_Payment' if 'Interest_Payment' in row else ('Interest Payment' if 'Interest Payment' in row else None)
+            balance_key = 'Remaining_Balance' if 'Remaining_Balance' in row else ('Remaining Balance' if 'Remaining Balance' in row else None)
+            ltv_key = 'LTV'
+            if principal_key is None or interest_key is None or balance_key is None or 'Payment' not in row or 'Date' not in row or 'Month' not in row or ltv_key not in row:
+                raise KeyError("Schedule row missing required keys")
+            return {
+                'Date': row['Date'],
+                'Month': row['Month'],
+                'Payment': loan_summary.format_amount(row['Payment']),
+                'Principal_Payment': loan_summary.format_amount(row[principal_key]),
+                'Interest_Payment': loan_summary.format_amount(row[interest_key]),
+                'LTV': f"{row[ltv_key]:.1f}%",
+                'Remaining_Balance': loan_summary.format_amount(row[balance_key])
+            }
         
         for payment in schedule:
-            formatted_payment = {
-                'Date': payment['Date'],
-                'Month': payment['Month'],
-                'Payment': loan_summary.format_amount(payment['Payment']),
-                'Principal_Payment': loan_summary.format_amount(payment['Principal_Payment']),
-                'Interest_Payment': loan_summary.format_amount(payment['Interest_Payment']),
-                'LTV': f"{payment['LTV']:.1f}%",
-                'Remaining_Balance': loan_summary.format_amount(payment['Remaining_Balance'])
-            }
-            dict_writer.writerow(formatted_payment)
+            dict_writer.writerow(_normalize_payment_row(payment))
 
 def _export_to_txt(
     schedule: List[dict],
@@ -273,13 +320,33 @@ def _export_to_txt(
                 f"{loan_summary.format_amount(payment['Remaining_Balance']):<18}\n"
             )
 
-def print_loan_summary(loan_summary: LoanSummary) -> None:
+def print_loan_summary(
+    principal: Decimal = None,
+    annual_rate: Decimal = None,
+    months: int = None,
+    monthly_payment: Decimal = None,
+    total_interest: Decimal = None,
+    currency_symbol: str = None,
+    deposit: Optional[Decimal] = None,
+    loan_summary: Optional[LoanSummary] = None,
+) -> None:
     """
-    Print a summary of the loan details to the console.
+    Backward-compatible print function that accepts keyword args as used in tests,
+    while still supporting passing a LoanSummary instance via loan_summary.
+    """
+    if loan_summary is None:
+        if None in (principal, annual_rate, months, monthly_payment, total_interest, currency_symbol):
+            raise TypeError("Missing required arguments for print_loan_summary")
+        loan_summary = LoanSummary(
+            principal=principal,
+            annual_rate=annual_rate,
+            months=months,
+            monthly_payment=monthly_payment,
+            total_interest=total_interest,
+            currency_symbol=currency_symbol,
+            deposit=deposit,
+        )
 
-    Args:
-        loan_summary (LoanSummary): Loan summary information
-    """
     print("\n=== Loan Summary ===")
     print(f"Property Value: {loan_summary.format_amount(loan_summary.property_value)}")
     if loan_summary.deposit is not None:
@@ -302,15 +369,15 @@ def print_loan_summary(loan_summary: LoanSummary) -> None:
 
 def print_amortization_schedule(
     schedule: List[dict],
-    loan_summary: LoanSummary,
+    loan_summary: Union["LoanSummary", str],
     max_entries: Optional[int] = None
 ) -> None:
     """
     Print the amortization schedule in a formatted table to the console.
-
+    
     Args:
         schedule (List[dict]): The amortization schedule
-        loan_summary (LoanSummary): Loan summary information
+        loan_summary (LoanSummary): Loan summary information or currency symbol (legacy)
         max_entries (Optional[int]): Maximum number of entries to print
     """
     header = (
@@ -321,17 +388,43 @@ def print_amortization_schedule(
     print(header)
     print("-" * len(header))
     
+    # Normalize legacy usage where loan_summary might be a currency symbol string
+    if isinstance(loan_summary, str):
+        class _TmpSummary:
+            def __init__(self, symbol: str) -> None:
+                self.currency_symbol = symbol
+            def format_amount(self, amount: Decimal) -> str:
+                from ..core.validation import format_currency
+                return format_currency(amount, self.currency_symbol)
+        legacy_summary = _TmpSummary(loan_summary)
+    else:
+        legacy_summary = loan_summary
+
     display_schedule = schedule[:max_entries] if max_entries else schedule
-    
-    for payment in display_schedule:
+
+    def _norm(row: dict) -> dict:
+        principal_key = 'Principal_Payment' if 'Principal_Payment' in row else ('Principal Payment' if 'Principal Payment' in row else None)
+        interest_key = 'Interest_Payment' if 'Interest_Payment' in row else ('Interest Payment' if 'Interest Payment' in row else None)
+        balance_key = 'Remaining_Balance' if 'Remaining_Balance' in row else ('Remaining Balance' if 'Remaining Balance' in row else None)
+        return {
+            'Date': row['Date'],
+            'Month': row['Month'],
+            'Payment': row['Payment'],
+            'Principal_Payment': row[principal_key],
+            'Interest_Payment': row[interest_key],
+            'LTV': row['LTV'],
+            'Remaining_Balance': row[balance_key],
+        }
+
+    for payment in map(_norm, display_schedule):
         print(
             f"{payment['Date']:<15}"
             f"{payment['Month']:<7}"
-            f"{loan_summary.format_amount(payment['Payment']):<15}"
-            f"{loan_summary.format_amount(payment['Principal_Payment']):<18}"
-            f"{loan_summary.format_amount(payment['Interest_Payment']):<15}"
+            f"{legacy_summary.format_amount(payment['Payment']):<15}"
+            f"{legacy_summary.format_amount(payment['Principal_Payment']):<18}"
+            f"{legacy_summary.format_amount(payment['Interest_Payment']):<15}"
             f"{payment['LTV']:.1f}%{' ':<3}"
-            f"{loan_summary.format_amount(payment['Remaining_Balance']):<18}"
+            f"{legacy_summary.format_amount(payment['Remaining_Balance']):<18}"
         )
     
     if max_entries and len(schedule) > max_entries:
